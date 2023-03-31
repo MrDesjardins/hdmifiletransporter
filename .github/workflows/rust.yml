@@ -1,0 +1,102 @@
+name: CI Build
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, nightly]
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchains
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+  coverage:
+    name: Test and Coverage
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        rust: [stable, nightly]
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Install toolchains
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Download grcov
+        run: |
+          mkdir -p "${HOME}/.local/bin"
+          curl -sL https://github.com/mozilla/grcov/releases/download/v0.8.10/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf - -C "${HOME}/.local/bin"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Test Only
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+        if: matrix.os != 'ubuntu-latest' && matrix.rust != 'stable'
+
+      - name: Test + Coverage
+        run: bash ${GITHUB_WORKSPACE}/coverage_ci.sh
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage/*.lcov
+          verbose: true
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+      
+#      - name: Run benchmark
+#        run: cargo +nightly bench | tee output.txt
+#        
+#      - name: Store benchmark result
+#        uses: benchmark-action/github-action-benchmark@v1
+#        with:
+#          tool: 'cargo'
+#          output-file-path: output.txt
+#          # Access token to deploy GitHub Pages branch
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          # Push and deploy GitHub pages branch automatically
+#          auto-push: true
+#          # Show alert with commit comment on detecting possible performance regression
+#          alert-threshold: '200%'
+#          # Enable alert commit comment
+#          comment-on-alert: true
+#          # Mention me in the commit comment
+#          alert-comment-cc-users: "@mrdesjardins"

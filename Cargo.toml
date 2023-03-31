@@ -1,0 +1,31 @@
+[package]
+name = "hdmifiletransporter"
+description = "Proof of concept on transferring files using HDMI (video via HDMI) from one computer to another"
+version = "0.1.0"
+edition = "2021"
+authors = ["Patrick Desjardins <mrdesjardins@gmail.com>"]
+homepage = "https://github.com/MrDesjardins/hdmifiletransporter"
+repository = "https://github.com/MrDesjardins/hdmifiletransporter"
+license = "Apache-2.0"
+keywords = ["steganography", "hidden-message", "video", "hdmi", "file-transfer"]
+exclude = [".vscode", ".github", "testAssets", "*.png", "*.sh"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+atty = "0.2.14"
+image = "0.24.5"
+magic-crypt = "3.1.12"
+
+[dev-dependencies]
+criterion = "0.4.0"
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[build] 
+rustdocflags = ["--document-private-items"]
+
+[doc]
+browser = "chromium"  
