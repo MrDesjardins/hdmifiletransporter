@@ -59,6 +59,14 @@ sudo apt install gnuplot
 which gnuplot
 ```
 
+To use opencv on WSL:
+
+```sh
+sudo su 
+apt install libopencv-dev clang libclang-dev
+sudo apt install cmake
+```
+
 ## Execute
 
 To get all options using `cargo run`:
@@ -108,7 +116,7 @@ hdmifiletransporter -m inject -i testAssets/test1.zip -o out1.mp4
 You need to use:
 
 ```sh
-cargo run -- -m inject -i testAssets/test1.zip -o out1.mp4
+cargo run -- -m inject -i testAssets/test1.txt -o out1.mp4
 ```
 
 # Benchmark

@@ -2,7 +2,7 @@ use clap;
 use clap::builder::TypedValueParser;
 use clap::command;
 use clap::Parser;
-
+use std::fs;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AppMode {
     Inject,
@@ -53,24 +53,27 @@ pub struct CliData {
     input_file_path: Option<String>,
 
     #[arg(short, long)]
-    fps: Option<u8>,
+    pub fps: Option<u8>,    
+    
+    #[arg(short, long)]
+    pub size: Option<u8>,
 
     #[arg(short='g', long)]
-    height: Option<u16>,
+    pub height: Option<u16>,
 
     #[arg(short, long)]
-    width: Option<u16>,
+    pub width: Option<u16>,
 
     /// When extracting, where to save the file
     #[arg(short, long)]
-    output_video_path: Option<String>,
+    pub output_video_path: Option<String>,
 
     /// Possible values:
     /// "inject"= inject the file into an image.
     /// "extract" = extract from an video the file.
     #[arg(short='m', long, value_parser = clap::builder::PossibleValuesParser::new(["inject", "extract"])
     .map(|s| s.parse::<AppMode>().unwrap()),)]
-    mode: Option<AppMode>,
+    pub mode: Option<AppMode>,
 }
 
 /// Extract from the command line (CLI) argument the option.
@@ -88,10 +91,11 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
     Ok(match args.mode {
         Some(i) => match i {
             AppMode::Inject => {
-                let buffer_from_files: &[u8];
+                let data = fs::read(args.input_file_path.unwrap_or_else(|| panic!("Missing input file"))).expect("Unable to read file");
                 VideoOptions::InjectInVideo({
                     InjectOptions {
-                        file_buffer: args.input_file_path.unwrap_or_else(|| panic!("Input file path")),
+                        file_buffer: data,
+                        size: args.size.unwrap_or_else(|| 1), 
                         fps: args.fps.unwrap_or_else(|| 30),
                         height: args.height.unwrap_or_else(|| 2160),
                         width: args.width.unwrap_or_else(|| 3840),
@@ -107,10 +111,11 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
 /// Required options for the injection of the file into a video
 #[derive(Clone)]
 pub struct InjectOptions {
-    pub file_buffer: String,
+    pub file_buffer: Vec<u8>,
     pub fps: u8,
     pub width: u16,
     pub height: u16,
+    pub size: u8,
 }
 
 #[derive(Clone)]
