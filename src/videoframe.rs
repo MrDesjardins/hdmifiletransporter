@@ -1,10 +1,14 @@
 use opencv::core::prelude::*;
 use opencv::core::{Mat, Size, CV_8UC3};
+use opencv::prelude::*;
+use opencv::videoio::{VideoCapture, VideoWriter, CAP_ANY};
 
+use crate::Color;
 /// Define a single frame that the video will play
 /// E.g. on a 30fps video, there will be 30 VideoFrame every second
 ///
 /// Original source: https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/embedsource.rs
+#[derive(Clone)]
 pub struct VideoFrame {
     /// A Mat is a dense array to store color
     ///
@@ -101,5 +105,18 @@ impl VideoFrame {
             frame_size,
             actual_size,
         })
+    }
+
+    pub fn read_coordinate_color(&self, x: u16, y: u16) -> Color {
+        let bgr = self
+            .image
+            .at_2d::<opencv::core::Vec3b>(y.into(), x.into())
+            .unwrap();
+
+        Color {
+            r: bgr[2],
+            g: bgr[1],
+            b: bgr[0]
+        }
     }
 }
