@@ -12,7 +12,8 @@ Cargo.lock
 
 .env
 
-/testAssets/delete_me.png
+/testAssets/
+/outputs/
 
 # Added by cargo
 #

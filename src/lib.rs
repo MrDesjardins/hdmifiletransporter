@@ -8,7 +8,7 @@ pub use crate::options::{extract_options, CliData, VideoOptions};
 use crate::videoframe::VideoFrame;
 use opencv::core::Size;
 use opencv::prelude::VideoWriterTrait;
-use opencv::videoio::{ VideoWriter};
+use opencv::videoio::VideoWriter;
 // const NUMBER_BIT_PER_BYTE: u8 = 8;
 const EOF_CHAR: u8 = 4u8;
 
@@ -80,10 +80,14 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
         width: options.width as i32,
     };
     //Fourcc is a code for video codecs, trying to use a lossless one
+    // See list of codec here: https://learn.fotoware.com/On-Premises/Getting_started/Metadata_in_the_FotoWare_system/04_Operators_to_search_in_specific_fields/FourCC_codes
+    // Careful, codec and file extension must match
+    
     //let fourcc = VideoWriter::fourcc('p', 'n', 'g', ' ');
     //let fourcc =  VideoWriter::fourcc('j', 'p', 'e', 'g');
-    let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
     //let fourcc = VideoWriter::fourcc('H','2','6','4');
+    let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
+
     match fourcc {
         Ok(fourcc_unwrapped) => {
             let video = VideoWriter::new(
@@ -102,7 +106,7 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
                     let result_release = video_unwrapped.release();
                     match result_release {
                         Ok(_s) => {
-                            println!("Video saved");
+                            println!("Video saved:{}", options.output_video_file.as_str());
                         }
                         Err(error_release) => {
                             println!("Error saving the video");
@@ -111,7 +115,7 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
                     }
                 }
                 Err(error_video) => {
-                    println!("{:?}", error_video)
+                    println!("Error with video writer: {:?}", error_video)
                 }
             }
         }
