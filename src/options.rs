@@ -91,10 +91,13 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
     Ok(match args.mode {
         Some(i) => match i {
             AppMode::Inject => {
-                let data = fs::read(args.input_file_path.unwrap_or_else(|| panic!("Missing input file"))).expect("Unable to read file");
+                let file_path = args.input_file_path.unwrap_or_else(|| panic!("Missing input file"));
+                println!("Input file: {}", file_path);
+                let data = fs::read(file_path).expect("Unable to read file");
                 VideoOptions::InjectInVideo({
                     InjectOptions {
                         file_buffer: data,
+                        output_video_file: args.output_video_path.unwrap_or_else( || "video.mp4v".to_string()),
                         size: args.size.unwrap_or_else(|| 1), 
                         fps: args.fps.unwrap_or_else(|| 30),
                         height: args.height.unwrap_or_else(|| 2160),
@@ -112,6 +115,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
 #[derive(Clone)]
 pub struct InjectOptions {
     pub file_buffer: Vec<u8>,
+    pub output_video_file: String,
     pub fps: u8,
     pub width: u16,
     pub height: u16,

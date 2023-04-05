@@ -116,7 +116,7 @@ hdmifiletransporter -m inject -i testAssets/test1.zip -o out1.mp4
 You need to use:
 
 ```sh
-cargo run -- -m inject -i testAssets/test1.txt -o out1.mp4
+cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4v --fps 30 --height 1920 --width 1080 --size 1
 ```
 
 # Benchmark
