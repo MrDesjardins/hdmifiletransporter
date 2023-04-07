@@ -55,6 +55,68 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
     byte_data
 }
 
+/// Loop each frame to find the one that is fully red
+/// Accumulate each frame after the red one until the end or until reach another red frame
+pub fn extract_relevant_frames(
+    extract_options: &ExtractOptions,
+    frames: Vec<VideoFrame>,
+) -> Vec<VideoFrame> {
+    let mut relevant_frames = Vec::new();
+    let actual_size = calculate_actual_size(
+        extract_options.width,
+        extract_options.height,
+        extract_options.size,
+    );
+
+    let mut starting_frame_found = false;
+    for frame in frames.iter() {
+        let current_frame_is_starting =
+            is_starting_frame(frame, actual_size, extract_options.size);
+
+        if starting_frame_found && current_frame_is_starting {
+            // Code went back to the starting frame
+            break;
+        }
+
+        if starting_frame_found && !current_frame_is_starting {
+            // We found in the past the starting frame and the current is not the current frame (first or subsequent from loop)
+            relevant_frames.push(frame.clone());
+        }
+
+        if !starting_frame_found && current_frame_is_starting {
+            // Starting frame found, from there we start accumulating
+            starting_frame_found = true;
+        }
+    }
+
+    relevant_frames
+}
+
+
+/// Indicate if the frame is the starting frame
+fn is_starting_frame(source: &VideoFrame, actual_size: Size, info_size: u8) -> bool {
+    let width = actual_size.width;
+    let height = actual_size.height;
+    let size = info_size as usize;
+
+    for y in (0..height).step_by(size) {
+        for x in (0..width).step_by(size) {
+            let rgb = get_pixel(source, x, y, info_size);
+            if rgb[0] != 255 {
+                return false;
+            }
+            if rgb[1] != 0 {
+                return false;
+            }
+            if rgb[2] != 0 {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 /// Extract from a frame all the data. Once the end of file character is found, the loop is done.
 /// # Source
 /// https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L280
@@ -90,7 +152,7 @@ fn frame_to_data(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
 /// # Source
 /// Code is a copy of https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L121
-fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size:u8) -> Vec<u8> {
+fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size: u8) -> Vec<u8> {
     let mut r_list: Vec<u8> = Vec::new();
     let mut g_list: Vec<u8> = Vec::new();
     let mut b_list: Vec<u8> = Vec::new();
@@ -99,10 +161,7 @@ fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size:u8) -> Vec<u8> {
         for j in 0..size {
             let bgr = frame
                 .image
-                .at_2d::<opencv::core::Vec3b>(
-                    y + i32::from(i),
-                    x + i32::from(j),
-                )
+                .at_2d::<opencv::core::Vec3b>(y + i32::from(i), x + i32::from(j))
                 .unwrap();
             r_list.push(bgr[2]);
             g_list.push(bgr[1]);
@@ -128,5 +187,9 @@ fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size:u8) -> Vec<u8> {
 /// if we injected a .zip file, we expect the file to be written to be also a .zip
 ///
 pub fn data_to_files(extract_options: &ExtractOptions, whole_movie_data: Vec<u8>) {
-    fs::write(extract_options.extracted_file_path.clone(), whole_movie_data).expect("Writing file fail");
+    fs::write(
+        extract_options.extracted_file_path.clone(),
+        whole_movie_data,
+    )
+    .expect("Writing file fail");
 }

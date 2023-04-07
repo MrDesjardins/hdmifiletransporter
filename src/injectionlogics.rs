@@ -15,8 +15,26 @@ pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
     })
 }
 
-/// Move data into many frame of the video
-///
+/// Create a starting frame to indicate that we are starting the transmission of the data
+/// 
+/// Needed because the source will play the video with all the data in loop. The consumer
+/// needs to read the stream of video and catch the first frame of data (the one after this
+/// starting frame) until it sees the same starting frame again.
+pub fn create_starting_frame(inject_options: &InjectOptions) -> VideoFrame {
+    let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
+    for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
+        for x in (0..inject_options.width).step_by(usize::from(inject_options.size)) {
+            // Set a full red frame to indicate that the next one is the start of the data
+            let r = 255;
+            let g = 0;
+            let b = 0;
+            frame.write(r, g, b, x, y, inject_options.size);
+        }
+    }
+    return frame;
+}
+
+/// Move data into many frames of the video
 pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index = 0;
