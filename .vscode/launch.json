@@ -1,0 +1,125 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'hdmifiletransporter'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=hdmifiletransporter"],
+        "filter": {
+          "name": "hdmifiletransporter",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'hdmifiletransporter' - Inject",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hdmifiletransporter",
+          "--package=hdmifiletransporter"
+        ],
+        "filter": {
+          "name": "hdmifiletransporter",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "inject",
+        "-i",
+        "testAssets/text1.txt",
+        "-o",
+        "outputs/out1.mp4",
+        "--fps",
+        "30",
+        "--height",
+        "1920",
+        "--width",
+        "1080",
+        "--size",
+        "1"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'hdmifiletransporter' - Extract",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hdmifiletransporter",
+          "--package=hdmifiletransporter"
+        ],
+        "filter": {
+          "name": "hdmifiletransporter",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "-m",
+        "extract",
+        "-i",
+        "outputs/out1.mp4",
+        "-o",
+        "outputs/text1.txt",
+        "--fps",
+        "30",
+        "--height",
+        "1920",
+        "--width",
+        "1080",
+        "--size",
+        "1"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'hdmifiletransporter'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=hdmifiletransporter",
+          "--package=hdmifiletransporter"
+        ],
+        "filter": {
+          "name": "hdmifiletransporter",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug benchmark 'benchmark'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bench=benchmark",
+          "--package=hdmifiletransporter"
+        ],
+        "filter": {
+          "name": "benchmark",
+          "kind": "bench"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

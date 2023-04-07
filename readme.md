@@ -146,3 +146,7 @@ cargo login
 cargo publish --dry-run
 cargo publish
 ```
+
+# Debugging
+
+You must install [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) if you want to set break point with VsCode.
