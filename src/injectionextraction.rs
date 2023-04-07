@@ -26,6 +26,5 @@ pub struct Color {
 pub fn calculate_actual_size(width: u16, height: u16, size: u8) -> Size {
     let actual_width = width - (width % u16::from(size));
     let actual_height = height - (height % u16::from(size));
-    let actual_size = Size::new(i32::from(actual_width), i32::from(actual_height));
-    actual_size
+    Size::new(i32::from(actual_width), i32::from(actual_height))
 }

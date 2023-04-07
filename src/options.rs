@@ -1,4 +1,3 @@
-use clap;
 use clap::builder::TypedValueParser;
 use clap::command;
 use clap::Parser;
@@ -107,14 +106,14 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
 
                 VideoOptions::InjectInVideo({
                     InjectOptions {
-                        file_path: file_path,
+                        file_path,
                         output_video_file: args
                             .output_video_path
                             .unwrap_or_else(|| "video.mp4".to_string()),
-                        size: args.size.unwrap_or_else(|| 1),
-                        fps: args.fps.unwrap_or_else(|| 30),
-                        height: args.height.unwrap_or_else(|| 2160),
-                        width: args.width.unwrap_or_else(|| 3840),
+                        size: args.size.unwrap_or(1),
+                        fps: args.fps.unwrap_or(30),
+                        height: args.height.unwrap_or(2160),
+                        width: args.width.unwrap_or(3840),
                     }
                 })
             }
@@ -126,10 +125,10 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     extracted_file_path: args
                         .output_video_path
                         .unwrap_or_else(|| "mydata.txt".to_string()),
-                    size: args.size.unwrap_or_else(|| 1),
-                    fps: args.fps.unwrap_or_else(|| 30),
-                    height: args.height.unwrap_or_else(|| 2160),
-                    width: args.width.unwrap_or_else(|| 3840),
+                    size: args.size.unwrap_or(1),
+                    fps: args.fps.unwrap_or(30),
+                    height: args.height.unwrap_or(2160),
+                    width: args.width.unwrap_or(3840),
                 }
             }),
         },

@@ -24,7 +24,7 @@ pub struct VideoFrame {
 }
 
 impl VideoFrame {
-    pub fn new(size: u8, width: u16, height: u16) -> VideoFrame {
+    pub fn new(width: u16, height: u16) -> VideoFrame {
         let frame_size = Size::new(width.into(), height.into());
         unsafe {
             let image = Mat::new_rows_cols(frame_size.height, frame_size.width, CV_8UC3)
@@ -65,11 +65,6 @@ impl VideoFrame {
         if height % i32::from(size) != 0 {
             return Err("Image size is not a multiple of the size".to_string());
         }
-
-        let actual_size = Size::new(
-            width - (width % i32::from(size)),
-            height - (height % i32::from(size)),
-        );
 
         Ok(VideoFrame {
             image,

@@ -19,15 +19,13 @@ pub fn execute_with_video_options(options: VideoOptions) {
         VideoOptions::InjectInVideo(n) => {
 
             let data = file_to_data(&n);
-            let frames = data_to_frames(n.clone(), data);
-            frames_to_video(n.clone(), frames);
+            let frames = data_to_frames(&n, data);
+            frames_to_video(n, frames);
         }
         VideoOptions::ExtractFromVideo(n) => {
-            let frames = video_to_frames(n.clone());
-            let data = frames_to_data(n.clone(), frames);
-            data_to_files(n.clone(), data);
+            let frames = video_to_frames(&n);
+            let data = frames_to_data(&n, frames);
+            data_to_files(&n, data);
         }
     }
 }
-
-

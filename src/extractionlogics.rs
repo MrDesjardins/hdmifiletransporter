@@ -11,7 +11,7 @@ use opencv::videoio::CAP_ANY;
 
 use crate::{injectionextraction::EOF_CHAR, options::ExtractOptions};
 
-pub fn video_to_frames(extract_options: ExtractOptions) -> Vec<VideoFrame> {
+pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
     let mut video = VideoCapture::from_file(&extract_options.video_file_path, CAP_ANY)
         .expect("Could not open video path");
 
@@ -36,12 +36,12 @@ pub fn video_to_frames(extract_options: ExtractOptions) -> Vec<VideoFrame> {
             }
         }
     }
-    return all_frames;
+    all_frames
 }
 
 /// Take the pixels from a collection of frames into a collection of byte
 /// The byte values are from the RGB of the pixels
-pub fn frames_to_data(extract_options: ExtractOptions, frames: Vec<VideoFrame>) -> Vec<u8> {
+pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>) -> Vec<u8> {
     let mut byte_data = Vec::new();
     let actual_size = calculate_actual_size(
         extract_options.width,
@@ -49,7 +49,7 @@ pub fn frames_to_data(extract_options: ExtractOptions, frames: Vec<VideoFrame>) 
         extract_options.size,
     );
     for frame in frames.iter() {
-        let frame_data = frame_to_data(&frame, actual_size, extract_options.size);
+        let frame_data = frame_to_data(frame, actual_size, extract_options.size);
         byte_data.extend(frame_data);
     }
     byte_data
@@ -66,7 +66,7 @@ fn frame_to_data(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u
     let mut byte_data: Vec<u8> = Vec::new();
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
-            let rgb = get_pixel(&source, x, y, info_size);
+            let rgb = get_pixel(source, x, y, info_size);
             if rgb[0] == EOF_CHAR {
                 return byte_data;
             }
@@ -84,7 +84,7 @@ fn frame_to_data(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u
         }
     }
 
-    return byte_data;
+    byte_data
 }
 
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
@@ -100,8 +100,8 @@ fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size:u8) -> Vec<u8> {
             let bgr = frame
                 .image
                 .at_2d::<opencv::core::Vec3b>(
-                    i32::from(y) + i32::from(i),
-                    i32::from(x) + i32::from(j),
+                    y + i32::from(i),
+                    x + i32::from(j),
                 )
                 .unwrap();
             r_list.push(bgr[2]);
@@ -118,7 +118,7 @@ fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size:u8) -> Vec<u8> {
     let b_average = b_sum / b_list.len();
     let rgb_average = vec![r_average as u8, g_average as u8, b_average as u8];
 
-    return rgb_average;
+    rgb_average
 }
 
 /// Move all the data from gathered from the movie file into
@@ -127,6 +127,6 @@ fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size:u8) -> Vec<u8> {
 /// # Example
 /// if we injected a .zip file, we expect the file to be written to be also a .zip
 ///
-pub fn data_to_files(extract_options: ExtractOptions, whole_movie_data: Vec<u8>) -> () {
-    fs::write(extract_options.extracted_file_path, whole_movie_data).expect("Writing file fail");
+pub fn data_to_files(extract_options: &ExtractOptions, whole_movie_data: Vec<u8>) {
+    fs::write(extract_options.extracted_file_path.clone(), whole_movie_data).expect("Writing file fail");
 }

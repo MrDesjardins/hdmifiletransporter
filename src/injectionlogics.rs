@@ -7,24 +7,23 @@ use std::fs;
 use crate::{injectionextraction::EOF_CHAR, options::InjectOptions, videoframe::VideoFrame};
 
 pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
-    let data = fs::read(&options.file_path)
-        .expect(format!("Unable to read file: {}", &options.file_path).as_str());
-    return data;
+    fs::read(&options.file_path).unwrap_or_else(|err| {
+        panic!(
+            "Unable to read file: {} with error: {}",
+            &options.file_path, err
+        )
+    })
 }
 
 /// Move data into many frame of the video
 ///
-pub fn data_to_frames(inject_options: InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
+pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index = 0;
 
     while data_index < data.len() {
         // Step 1: Create a single frame
-        let mut frame = VideoFrame::new(
-            inject_options.size,
-            inject_options.width,
-            inject_options.height,
-        );
+        let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
         for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
             for x in (0..inject_options.width).step_by(usize::from(inject_options.size)) {
                 // Step 2: For each pixel of the frame, extract a byte of the vector
@@ -82,7 +81,9 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
                 Ok(mut video_unwrapped) => {
                     for frame in frames {
                         let image = frame.image;
-                        video_unwrapped.write(&image);
+                        video_unwrapped
+                            .write(&image)
+                            .expect("All frame must be written");
                     }
                     let result_release = video_unwrapped.release();
                     match result_release {
@@ -123,7 +124,7 @@ mod lib_tests {
         };
         // Text: This is a test
         let frames = data_to_frames(
-            options,
+            &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
         );
         assert_eq!(frames.len(), 1)
@@ -142,7 +143,7 @@ mod lib_tests {
         };
         // Text: This is a test, 14 chars
         let frames = data_to_frames(
-            options,
+            &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
         );
         assert_eq!(frames.len(), 2)
@@ -160,7 +161,7 @@ mod lib_tests {
             size: 1,
         };
         // Text: This
-        let frames = data_to_frames(options, vec![54, 68, 69, 73]);
+        let frames = data_to_frames(&options, vec![54, 68, 69, 73]);
         let first_frame = &frames[0];
         let color1 = first_frame.read_coordinate_color(0, 0);
         assert_eq!(color1.r, 54);
