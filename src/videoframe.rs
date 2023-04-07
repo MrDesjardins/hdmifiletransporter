@@ -85,12 +85,12 @@ impl VideoFrame {
         }
     }
 
-    pub fn from(image: Mat, size: u8, instruction: bool) -> Result<VideoFrame, String> {
+    pub fn from(image: Mat, size: u8) -> Result<VideoFrame, String> {
         let width = image.cols();
         let height = image.rows();
         let frame_size = Size::new(width, height);
 
-        if height % i32::from(size) != 0 && !(instruction) {
+        if height % i32::from(size) != 0 {
             return Err("Image size is not a multiple of the size".to_string());
         }
 
@@ -116,7 +116,7 @@ impl VideoFrame {
         Color {
             r: bgr[2],
             g: bgr[1],
-            b: bgr[0]
+            b: bgr[0],
         }
     }
 }

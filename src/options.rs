@@ -2,7 +2,6 @@ use clap;
 use clap::builder::TypedValueParser;
 use clap::command;
 use clap::Parser;
-use std::fs;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AppMode {
     Inject,
@@ -53,12 +52,12 @@ pub struct CliData {
     input_file_path: Option<String>,
 
     #[arg(short, long)]
-    pub fps: Option<u8>,    
-    
+    pub fps: Option<u8>,
+
     #[arg(short, long)]
     pub size: Option<u8>,
 
-    #[arg(short='g', long)]
+    #[arg(short = 'g', long)]
     pub height: Option<u16>,
 
     #[arg(short, long)]
@@ -91,21 +90,38 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
     Ok(match args.mode {
         Some(i) => match i {
             AppMode::Inject => {
-                let file_path = args.input_file_path.unwrap_or_else(|| panic!("Missing input file"));
+                let file_path = args
+                    .input_file_path
+                    .unwrap_or_else(|| panic!("Missing input file"));
                 println!("Input file: {}", file_path);
-                let data = fs::read(file_path).expect("Unable to read file");
+   
                 VideoOptions::InjectInVideo({
                     InjectOptions {
-                        file_buffer: data,
-                        output_video_file: args.output_video_path.unwrap_or_else( || "video.mp4v".to_string()),
-                        size: args.size.unwrap_or_else(|| 1), 
+                        file_path: file_path,
+                        output_video_file: args
+                            .output_video_path
+                            .unwrap_or_else(|| "video.mp4".to_string()),
+                        size: args.size.unwrap_or_else(|| 1),
                         fps: args.fps.unwrap_or_else(|| 30),
                         height: args.height.unwrap_or_else(|| 2160),
                         width: args.width.unwrap_or_else(|| 3840),
                     }
                 })
             }
-            AppMode::Extract => VideoOptions::ExtractFromVideo({ ExtractOptions {} }),
+            AppMode::Extract => VideoOptions::ExtractFromVideo({
+                ExtractOptions {
+                    video_file_path: args
+                        .input_file_path
+                        .unwrap_or_else(|| "video.mp4".to_string()),
+                    extracted_file_path: args
+                        .output_video_path
+                        .unwrap_or_else(|| "mydata.txt".to_string()),
+                    size: args.size.unwrap_or_else(|| 1),
+                    fps: args.fps.unwrap_or_else(|| 30),
+                    height: args.height.unwrap_or_else(|| 2160),
+                    width: args.width.unwrap_or_else(|| 3840),
+                }
+            }),
         },
         None => panic!("Encrypt mode is required"),
     })
@@ -114,7 +130,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
 /// Required options for the injection of the file into a video
 #[derive(Clone)]
 pub struct InjectOptions {
-    pub file_buffer: Vec<u8>,
+    pub file_path: String,
     pub output_video_file: String,
     pub fps: u8,
     pub width: u16,
@@ -123,7 +139,14 @@ pub struct InjectOptions {
 }
 
 #[derive(Clone)]
-pub struct ExtractOptions {}
+pub struct ExtractOptions {
+    pub video_file_path: String,
+    pub extracted_file_path: String,
+    pub fps: u8,
+    pub width: u16,
+    pub height: u16,
+    pub size: u8,
+}
 
 #[derive(Clone)]
 pub enum VideoOptions {
