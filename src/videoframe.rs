@@ -1,9 +1,10 @@
 use opencv::core::prelude::*;
 use opencv::core::{Mat, Size, CV_8UC3};
-use opencv::prelude::*;
-use opencv::videoio::{VideoCapture, VideoWriter, CAP_ANY};
 
-use crate::Color;
+use crate::injectionextraction::Color;
+
+
+
 /// Define a single frame that the video will play
 /// E.g. on a 30fps video, there will be 30 VideoFrame every second
 ///
