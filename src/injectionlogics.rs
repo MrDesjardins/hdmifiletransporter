@@ -46,7 +46,7 @@ pub fn data_to_frames(inject_options: InjectOptions, data: Vec<u8>) -> Vec<Video
                     EOF_CHAR
                 };
                 // Step 3: Apply the pixel to the frame
-                frame.write(r, g, b, x, y);
+                frame.write(r, g, b, x, y, inject_options.size);
                 data_index += 3; // 3 because R, G, B
             }
         }

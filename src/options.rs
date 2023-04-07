@@ -54,6 +54,16 @@ pub struct CliData {
     #[arg(short, long)]
     pub fps: Option<u8>,
 
+    /// Depending of how we will translate the information into the video frame,
+    /// we may color the information in different size. The size represent the number
+    /// of pixel (width and height) for each value.
+    ///
+    /// # Expected Values
+    /// 1, 2 or 4. Should never be 0 and would be innefficient to have bigger than 4.
+    ///
+    /// # Examples
+    /// E.g. A size of 1 means each info is colored into 1 pixel
+    /// E.g. A size of 2 means each info is colored into a 2x2 pixel (4 pixels)
     #[arg(short, long)]
     pub size: Option<u8>,
 
@@ -94,7 +104,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     .input_file_path
                     .unwrap_or_else(|| panic!("Missing input file"));
                 println!("Input file: {}", file_path);
-   
+
                 VideoOptions::InjectInVideo({
                     InjectOptions {
                         file_path: file_path,
