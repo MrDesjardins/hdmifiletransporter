@@ -2,7 +2,7 @@ use opencv::videoio::VideoCapture;
 
 use std::fs;
 
-use crate::injectionextraction::calculate_actual_size;
+use crate::injectionextraction::map_to_size;
 use crate::videoframe::VideoFrame;
 use opencv::core::{Mat, Size};
 use opencv::prelude::MatTraitConst;
@@ -43,10 +43,9 @@ pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
 /// The byte values are from the RGB of the pixels
 pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>) -> Vec<u8> {
     let mut byte_data = Vec::new();
-    let actual_size = calculate_actual_size(
+    let actual_size = map_to_size(
         extract_options.width,
-        extract_options.height,
-        extract_options.size,
+        extract_options.height
     );
     for frame in frames.iter() {
         let frame_data = frame_to_data(frame, actual_size, extract_options.size);
@@ -62,10 +61,9 @@ pub fn extract_relevant_frames(
     frames: Vec<VideoFrame>,
 ) -> Vec<VideoFrame> {
     let mut relevant_frames = Vec::new();
-    let actual_size = calculate_actual_size(
+    let actual_size = map_to_size(
         extract_options.width,
-        extract_options.height,
-        extract_options.size,
+        extract_options.height
     );
 
     let mut starting_frame_found = false;

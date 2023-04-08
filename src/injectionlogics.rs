@@ -16,7 +16,7 @@ pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
 }
 
 /// Create a starting frame to indicate that we are starting the transmission of the data
-/// 
+///
 /// Needed because the source will play the video with all the data in loop. The consumer
 /// needs to read the stream of video and catch the first frame of data (the one after this
 /// starting frame) until it sees the same starting frame again.
@@ -126,7 +126,9 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
 }
 
 #[cfg(test)]
-mod lib_tests {
+mod injectionlogics_tests {
+    use opencv::prelude::MatTraitConst;
+
     use crate::injectionextraction::EOF_CHAR;
 
     use super::*;
@@ -189,5 +191,29 @@ mod lib_tests {
         assert_eq!(color2.r, 73);
         assert_eq!(color2.g, EOF_CHAR);
         assert_eq!(color2.b, EOF_CHAR);
+    }
+
+    #[test]
+    fn test_create_starting_frame() {
+        let w: i32 = 10;
+        let h: i32 = 10;
+        let inject_options = &InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            width: w as u16,
+            height: h as u16,
+            size: 1,
+        };
+        let result = create_starting_frame(inject_options);
+        for x in 0..w {
+            for y in 0..h {
+                let bgr = result.image.at_2d::<opencv::core::Vec3b>(y, x).unwrap();
+                assert_eq!(bgr[2], 255);
+                assert_eq!(bgr[1], 0);
+                assert_eq!(bgr[0], 0);
+            }
+        }
+        
     }
 }

@@ -12,19 +12,25 @@ pub struct Color {
     pub b: u8,
 }
 
-/// The actual size is calculated using the size of the information.
-/// It represents the number of data that will actually fits into the
-/// frame. The size of the info affect the actual size of the frame but
-/// will always render the frame_size. Thus, actual_size is equal or
-/// smaller than the frame_size.
-///
-/// # Examples
-/// E.g. A width of 100, height of 100 and a size of 1 gives an actual
-/// size of 10 000.
-/// E.g. A width of 100, height of 100 and a size of 2 gives an actual
-/// size of 2 500.
-pub fn calculate_actual_size(width: u16, height: u16, size: u8) -> Size {
-    let actual_width = width - (width % u16::from(size));
-    let actual_height = height - (height % u16::from(size));
-    Size::new(i32::from(actual_width), i32::from(actual_height))
+/// Create a size to hold the height and width of a frame for the opencv framework
+pub fn map_to_size(width: u16, height: u16) -> Size {
+    Size::new(i32::from(width), i32::from(height))
+}
+
+
+#[cfg(test)]
+mod injectionextraction_tests {
+  use super::*;
+  #[test]
+  fn test_calculate_actual_size_1() {
+    let result = map_to_size(100, 50);
+    assert_eq!(result.width, 100);
+    assert_eq!(result.height, 50);
+  }
+  #[test]
+  fn test_calculate_actual_size_2() {
+    let result = map_to_size(1000, 500);
+    assert_eq!(result.width, 1000);
+    assert_eq!(result.height, 500);
+  }
 }
