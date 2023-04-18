@@ -17,6 +17,12 @@ For details about the concept and code visit these articles:
 1.
 1.
 
+# Scope of this Code Base
+
+The code base contains a Rust script that inject a file into a video file. Also, it does the other side: from video file to file.
+
+What is out of scope is the HDMI part. The details can be found in the several articles written.
+
 # Information for the Consumers of the Library
 
 
