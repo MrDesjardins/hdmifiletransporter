@@ -30,6 +30,11 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
+      - name: Install CV
+        run: |
+          sudo apt-get install -ylibopencv-dev clang libclang-dev
+          sudo apt install cmake
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Run cargo check
@@ -57,6 +62,11 @@ jobs:
           override: true
           components: llvm-tools-preview
 
+      - name: Install CV
+        run: |
+          sudo apt-get install -ylibopencv-dev clang libclang-dev
+          sudo apt install cmake
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Download grcov
@@ -64,11 +74,6 @@ jobs:
           mkdir -p "${HOME}/.local/bin"
           curl -sL https://github.com/mozilla/grcov/releases/download/v0.8.10/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf - -C "${HOME}/.local/bin"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-          
-      - name: Install CV
-        run: |
-          sudo apt-get install -ylibopencv-dev clang libclang-dev
-          sudo apt install cmake
 
       - name: Test Only
         uses: actions-rs/cargo@v1
