@@ -162,3 +162,82 @@ pub enum VideoOptions {
     InjectInVideo(InjectOptions),
     ExtractFromVideo(ExtractOptions),
 }
+
+#[cfg(test)]
+mod options_tests {
+
+    use super::*;
+    use crate::options::AppMode;
+    use crate::VideoOptions::{ExtractFromVideo, InjectInVideo};
+    #[test]
+    #[should_panic]
+    fn test_extract_options_no_mode() {
+        let _ = extract_options(CliData {
+            fps: None,
+            height: None,
+            input_file_path: Some("inputfile.txt".to_string()),
+            mode: None,
+            output_video_path: None,
+            size: None,
+            width: None,
+        });
+    }
+    #[test]
+    #[should_panic]
+    fn test_extract_options_inject_no_input_file_path() {
+        let _ = extract_options(CliData {
+            fps: None,
+            height: None,
+            input_file_path: None,
+            mode: Some(AppMode::Inject),
+            output_video_path: None,
+            size: None,
+            width: None,
+        });
+    }
+    #[test]
+    fn test_extract_options_inject_default() {
+        let options = extract_options(CliData {
+            fps: None,
+            height: None,
+            input_file_path: Some("inputfile.txt".to_string()),
+            mode: Some(AppMode::Inject),
+            output_video_path: None,
+            size: None,
+            width: None,
+        });
+        let unwrapped_options = options.unwrap();
+        if let InjectInVideo(op) = unwrapped_options {
+            assert_eq!(op.fps, 30);
+            assert_eq!(op.height, 2160);
+            assert_eq!(op.width, 3840);
+            assert_eq!(op.size, 1);
+            assert_eq!(op.output_video_file, "video.mp4");
+        } else {
+            assert!(true, "Failed to unwrapped inject options");
+        }
+    }
+    #[test]
+    fn test_extract_options_extract_default() {
+        let options = extract_options(CliData {
+            fps: None,
+            height: None,
+            input_file_path: None,
+            mode: Some(AppMode::Extract),
+            output_video_path: None,
+            size: None,
+            width: None,
+        });
+        let unwrapped_options = options.unwrap();
+        if let ExtractFromVideo(op) = unwrapped_options {
+            assert_eq!(op.fps, 30);
+            assert_eq!(op.height, 2160);
+            assert_eq!(op.width, 3840);
+            assert_eq!(op.size, 1);
+            assert_eq!(op.extracted_file_path, "mydata.txt");
+            assert_eq!(op.video_file_path, "video.mp4");
+        } else {
+            assert!(true, "Failed to unwrapped extract options");
+        }
+    }
+}
