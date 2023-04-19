@@ -1,10 +1,11 @@
 [package]
 name = "hdmifiletransporter"
 description = "Proof of concept on transferring files using HDMI (video via HDMI) from one computer to another"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Patrick Desjardins <mrdesjardins@gmail.com>"]
 homepage = "https://github.com/MrDesjardins/hdmifiletransporter"
+readme = "readme.md"
 repository = "https://github.com/MrDesjardins/hdmifiletransporter"
 license = "Apache-2.0"
 keywords = ["steganography", "hidden-message", "video", "hdmi", "file-transfer"]
