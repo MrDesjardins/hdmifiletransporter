@@ -82,7 +82,7 @@ mod videoframe_tests {
     use super::VideoFrame;
     use opencv::core::prelude::*;
     use opencv::prelude::MatTraitConstManual;
-    use opencv::core::{Mat, Size, CV_8UC3};
+    use opencv::core::{Mat, CV_8UC3};
     #[test]
     fn test_new_create_image_size() {
         let result = VideoFrame::new(100, 50);

@@ -1,7 +1,58 @@
+/*!
+# HDMI File Transporter
+The HDMI File Transporter is a Rust library that inject the content of a single file into a single video file. The library
+allows the reverse by reading the video content and export the content of the original file.
+
+# Goals
+
+The goals are:
+1. Injecting content into a video format to transfer the content using HDMI (or other display port)
+2. Extracting the content (text, zip file, etc) from the video and consuming it from another computer.
+
+# Examples
+
+## Injecting a file into a video
+
+```no_run
+use hdmifiletransporter::execute_with_video_options;
+use hdmifiletransporter::options::{VideoOptions, InjectOptions};
+
+let options = VideoOptions::InjectInVideo({
+    InjectOptions {
+        file_path: "/your/file/here.zip".to_string(),
+        output_video_file: "/your/video.mp4".to_string(),
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        size: 1
+    }
+});
+execute_with_video_options(options);
+```
+
+## Extract the file from the video
+
+```no_run
+use hdmifiletransporter::execute_with_video_options;
+use hdmifiletransporter::options::{VideoOptions, ExtractOptions};
+
+let options = VideoOptions::ExtractFromVideo({
+    ExtractOptions {
+        video_file_path:"/your/video.mp4".to_string(),
+        extracted_file_path: "/your/file/here.zip".to_string(),
+        fps: 30,
+        width: 1080,
+        height:1920,
+        size: 1
+    }
+});
+execute_with_video_options(options);
+*/
+
 mod extractionlogics;
 mod injectionextraction;
 mod injectionlogics;
-mod options;
+pub mod options;
 mod videoframe;
 
 use extractionlogics::{data_to_files, extract_relevant_frames};
@@ -10,7 +61,7 @@ use injectionlogics::{create_starting_frame, file_to_data};
 // Re-export for external access (main.rs)
 pub use crate::extractionlogics::{frames_to_data, video_to_frames};
 pub use crate::injectionlogics::{data_to_frames, frames_to_video};
-pub use crate::options::{extract_options, CliData, VideoOptions};
+pub use crate::options::{extract_options, CliData, ExtractOptions, InjectOptions, VideoOptions};
 
 /// Execute video logics
 /// Two executions possible: inject a file into a video or extract it.
