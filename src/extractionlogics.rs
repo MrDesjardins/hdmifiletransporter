@@ -3,6 +3,7 @@ use opencv::videoio::VideoCapture;
 use std::fs;
 
 use crate::injectionextraction::map_to_size;
+use crate::options::AlgoFrame;
 use crate::videoframe::VideoFrame;
 use opencv::core::{Mat, Size};
 use opencv::prelude::MatTraitConst;
@@ -43,12 +44,13 @@ pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
 /// The byte values are from the RGB of the pixels
 pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>) -> Vec<u8> {
     let mut byte_data = Vec::new();
-    let actual_size = map_to_size(
-        extract_options.width,
-        extract_options.height
-    );
+    let actual_size = map_to_size(extract_options.width, extract_options.height);
     for frame in frames.iter() {
-        let frame_data = frame_to_data(frame, actual_size, extract_options.size);
+        let frame_data = if extract_options.algo == AlgoFrame::RGB {
+            frame_to_data_method_rgb(frame, actual_size, extract_options.size)
+        } else {
+            frame_to_data_method_bw(frame, actual_size, extract_options.size)
+        };
         byte_data.extend(frame_data);
     }
     byte_data
@@ -61,15 +63,11 @@ pub fn extract_relevant_frames(
     frames: Vec<VideoFrame>,
 ) -> Vec<VideoFrame> {
     let mut relevant_frames = Vec::new();
-    let actual_size = map_to_size(
-        extract_options.width,
-        extract_options.height
-    );
+    let actual_size = map_to_size(extract_options.width, extract_options.height);
 
     let mut starting_frame_found = false;
     for frame in frames.iter() {
-        let current_frame_is_starting =
-            is_starting_frame(frame, actual_size, extract_options.size);
+        let current_frame_is_starting = is_starting_frame(frame, actual_size, extract_options.size);
 
         if starting_frame_found && current_frame_is_starting {
             // Code went back to the starting frame
@@ -89,7 +87,6 @@ pub fn extract_relevant_frames(
 
     relevant_frames
 }
-
 
 /// Indicate if the frame is the starting frame
 fn is_starting_frame(source: &VideoFrame, actual_size: Size, info_size: u8) -> bool {
@@ -118,7 +115,7 @@ fn is_starting_frame(source: &VideoFrame, actual_size: Size, info_size: u8) -> b
 /// Extract from a frame all the data. Once the end of file character is found, the loop is done.
 /// # Source
 /// https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L280
-fn frame_to_data(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u8> {
+fn frame_to_data_method_rgb(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u8> {
     let width = actual_size.width;
     let height = actual_size.height;
     let size = info_size as usize;
@@ -145,6 +142,10 @@ fn frame_to_data(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u
     }
 
     byte_data
+}
+
+fn frame_to_data_method_bw(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u8> {
+   todo!()
 }
 
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy

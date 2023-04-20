@@ -15,7 +15,7 @@ The goals are:
 
 ```no_run
 use hdmifiletransporter::execute_with_video_options;
-use hdmifiletransporter::options::{VideoOptions, InjectOptions};
+use hdmifiletransporter::options::{VideoOptions, InjectOptions, AlgoFrame};
 
 let options = VideoOptions::InjectInVideo({
     InjectOptions {
@@ -24,7 +24,8 @@ let options = VideoOptions::InjectInVideo({
         fps: 30,
         width: 1080,
         height: 1920,
-        size: 1
+        size: 1,
+        algo: AlgoFrame::RGB
     }
 });
 execute_with_video_options(options);
@@ -34,7 +35,7 @@ execute_with_video_options(options);
 
 ```no_run
 use hdmifiletransporter::execute_with_video_options;
-use hdmifiletransporter::options::{VideoOptions, ExtractOptions};
+use hdmifiletransporter::options::{VideoOptions, ExtractOptions, AlgoFrame};
 
 let options = VideoOptions::ExtractFromVideo({
     ExtractOptions {
@@ -43,7 +44,8 @@ let options = VideoOptions::ExtractFromVideo({
         fps: 30,
         width: 1080,
         height:1920,
-        size: 1
+        size: 1,
+        algo: AlgoFrame::RGB
     }
 });
 execute_with_video_options(options);

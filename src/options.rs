@@ -1,10 +1,17 @@
 use clap::builder::TypedValueParser;
 use clap::command;
 use clap::Parser;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AppMode {
     Inject,
     Extract,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum AlgoFrame {
+    RGB,
+    BW,
 }
 
 impl std::fmt::Display for AppMode {
@@ -25,6 +32,28 @@ impl std::str::FromStr for AppMode {
             "inject" => Ok(Self::Inject),
             "extract" => Ok(Self::Extract),
             _ => Err(format!("Unknown mode: {s}")),
+        }
+    }
+}
+
+impl std::fmt::Display for AlgoFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::RGB => "rgb",
+            Self::BW => "bw",
+        };
+        s.fmt(f)
+    }
+}
+
+impl std::str::FromStr for AlgoFrame {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "rgb" => Ok(Self::RGB),
+            "bw" => Ok(Self::BW),
+            _ => Err(format!("Unknown algo: {s}")),
         }
     }
 }
@@ -82,6 +111,11 @@ pub struct CliData {
     #[arg(short='m', long, value_parser = clap::builder::PossibleValuesParser::new(["inject", "extract"])
     .map(|s| s.parse::<AppMode>().unwrap()),)]
     pub mode: Option<AppMode>,
+
+    /// Determine how the data is injected and extract into a frame
+    #[arg(short='a', long, value_parser = clap::builder::PossibleValuesParser::new(["rgb", "bw"])
+    .map(|s| s.parse::<AlgoFrame>().unwrap()),)]
+    pub algo: Option<AlgoFrame>,
 }
 
 /// Extract from the command line (CLI) argument the option.
@@ -114,6 +148,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                         fps: args.fps.unwrap_or(30),
                         height: args.height.unwrap_or(2160),
                         width: args.width.unwrap_or(3840),
+                        algo: args.algo.unwrap_or(AlgoFrame::RGB)
                     }
                 })
             }
@@ -129,6 +164,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     fps: args.fps.unwrap_or(30),
                     height: args.height.unwrap_or(2160),
                     width: args.width.unwrap_or(3840),
+                    algo: args.algo.unwrap_or(AlgoFrame::RGB)
                 }
             }),
         },
@@ -145,6 +181,7 @@ pub struct InjectOptions {
     pub width: u16,
     pub height: u16,
     pub size: u8,
+    pub algo: AlgoFrame,
 }
 
 #[derive(Clone)]
@@ -155,6 +192,7 @@ pub struct ExtractOptions {
     pub width: u16,
     pub height: u16,
     pub size: u8,
+    pub algo: AlgoFrame,
 }
 
 #[derive(Clone)]
@@ -180,6 +218,7 @@ mod options_tests {
             output_video_path: None,
             size: None,
             width: None,
+            algo: None,
         });
     }
     #[test]
@@ -193,6 +232,7 @@ mod options_tests {
             output_video_path: None,
             size: None,
             width: None,
+            algo: None,
         });
     }
     #[test]
@@ -205,6 +245,7 @@ mod options_tests {
             output_video_path: None,
             size: None,
             width: None,
+            algo: None,
         });
         let unwrapped_options = options.unwrap();
         if let InjectInVideo(op) = unwrapped_options {
@@ -213,6 +254,7 @@ mod options_tests {
             assert_eq!(op.width, 3840);
             assert_eq!(op.size, 1);
             assert_eq!(op.output_video_file, "video.mp4");
+            assert_eq!(op.algo, AlgoFrame::RGB);
         } else {
             assert!(true, "Failed to unwrapped inject options");
         }
@@ -227,6 +269,7 @@ mod options_tests {
             output_video_path: None,
             size: None,
             width: None,
+            algo: None
         });
         let unwrapped_options = options.unwrap();
         if let ExtractFromVideo(op) = unwrapped_options {
@@ -236,6 +279,7 @@ mod options_tests {
             assert_eq!(op.size, 1);
             assert_eq!(op.extracted_file_path, "mydata.txt");
             assert_eq!(op.video_file_path, "video.mp4");
+            assert_eq!(op.algo, AlgoFrame::RGB);
         } else {
             assert!(true, "Failed to unwrapped extract options");
         }

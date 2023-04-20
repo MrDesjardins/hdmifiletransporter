@@ -4,7 +4,7 @@ use opencv::{
 };
 use std::fs;
 
-use crate::{injectionextraction::EOF_CHAR, options::InjectOptions, videoframe::VideoFrame};
+use crate::{injectionextraction::EOF_CHAR, options::{InjectOptions, AlgoFrame}, videoframe::VideoFrame};
 
 pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
     fs::read(&options.file_path).unwrap_or_else(|err| {
@@ -34,8 +34,19 @@ pub fn create_starting_frame(inject_options: &InjectOptions) -> VideoFrame {
     return frame;
 }
 
-/// Move data into many frames of the video
 pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
+    let frames = if inject_options.algo == AlgoFrame::RGB {
+        data_to_frames_method_rgb(&inject_options, data)
+    } else {
+        data_to_frames_method_blackwhite(&inject_options, data)
+    };
+    frames
+}
+
+/// Move data into many frames of the video using RGB
+/// Each data (character) is going in to a R or G or B.
+/// It means that a pixel can hold 3 characters of a file.
+fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index = 0;
 
@@ -70,6 +81,16 @@ pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<Vide
         frames.push(frame);
     } // Step 4: Loop until the frame is full or that there is no mode byte
     frames
+}
+
+/// Move data into many frames of the video using bit and black and white
+/// Each data (character) is going to 8 pixels. Each pixel is black (0) or white (1)
+/// It means that a pixel alone represent 1/8 of a byte (a character).
+fn data_to_frames_method_blackwhite(
+    inject_options: &InjectOptions,
+    data: Vec<u8>,
+) -> Vec<VideoFrame> {
+    todo!()
 }
 
 pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
@@ -141,9 +162,10 @@ mod injectionlogics_tests {
             height: 10,
             width: 10,
             size: 1,
+            algo: crate::options::AlgoFrame::RGB,
         };
         // Text: This is a test
-        let frames = data_to_frames(
+        let frames = data_to_frames_method_rgb(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
         );
@@ -160,9 +182,10 @@ mod injectionlogics_tests {
             height: 2,
             width: 2,
             size: 1,
+            algo: crate::options::AlgoFrame::RGB,
         };
         // Text: This is a test, 14 chars
-        let frames = data_to_frames(
+        let frames = data_to_frames_method_rgb(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
         );
@@ -179,9 +202,10 @@ mod injectionlogics_tests {
             height: 2,
             width: 2,
             size: 1,
+            algo: crate::options::AlgoFrame::RGB,
         };
         // Text: This
-        let frames = data_to_frames(&options, vec![54, 68, 69, 73]);
+        let frames = data_to_frames_method_rgb(&options, vec![54, 68, 69, 73]);
         let first_frame = &frames[0];
         let color1 = first_frame.read_coordinate_color(0, 0);
         assert_eq!(color1.r, 54);
@@ -204,6 +228,7 @@ mod injectionlogics_tests {
             width: w as u16,
             height: h as u16,
             size: 1,
+            algo: crate::options::AlgoFrame::RGB,
         };
         let result = create_starting_frame(inject_options);
         for x in 0..w {
@@ -214,6 +239,5 @@ mod injectionlogics_tests {
                 assert_eq!(bgr[0], 0);
             }
         }
-        
     }
 }
