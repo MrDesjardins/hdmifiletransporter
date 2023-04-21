@@ -21,11 +21,7 @@ pub fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
  **/
 pub fn get_bit_from_rgb(rgb: Vec<u8>) -> bool {
     let sum: u32 = rgb.iter().map(|x| *x as u32).sum();
-    if sum < (255_u32 * 3 / 2) {
-        false
-    } else {
-        true
-    }
+    sum >= (255_u32 * 3 / 2)
 }
 
 pub fn mutate_byte(byte_val: &mut u8, bit_val: bool, position: u8) {

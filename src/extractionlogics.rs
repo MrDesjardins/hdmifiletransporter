@@ -110,7 +110,7 @@ fn is_starting_frame(source: &VideoFrame, actual_size: Size, info_size: u8) -> b
         }
     }
 
-    return true;
+    true
 }
 
 /// Extract from a frame all the data. Once the end of file character is found, the loop is done.

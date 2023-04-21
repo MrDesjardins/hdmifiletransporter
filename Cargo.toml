@@ -1,7 +1,7 @@
 [package]
 name = "hdmifiletransporter"
 description = "Proof of concept on transferring files using HDMI (video via HDMI) from one computer to another"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Patrick Desjardins <mrdesjardins@gmail.com>"]
 homepage = "https://github.com/MrDesjardins/hdmifiletransporter"

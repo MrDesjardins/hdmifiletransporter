@@ -4,7 +4,6 @@ use opencv::{
 };
 use std::fs;
 
-
 use crate::{
     bitlogics::{get_bit_at, get_rgb_for_bit},
     injectionextraction::EOF_CHAR,
@@ -37,16 +36,15 @@ pub fn create_starting_frame(inject_options: &InjectOptions) -> VideoFrame {
             frame.write(r, g, b, x, y, inject_options.size);
         }
     }
-    return frame;
+    frame
 }
 
 pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
-    let frames = if inject_options.algo == AlgoFrame::RGB {
-        data_to_frames_method_rgb(&inject_options, data)
+    if inject_options.algo == AlgoFrame::RGB {
+        data_to_frames_method_rgb(inject_options, data)
     } else {
-        data_to_frames_method_bw(&inject_options, data)
-    };
-    frames
+        data_to_frames_method_bw(inject_options, data)
+    }
 }
 
 /// Move data into many frames of the video using RGB
@@ -92,10 +90,7 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
 /// Move data into many frames of the video using bit and black and white
 /// Each data (character) is going to 8 pixels. Each pixel is black (0) or white (1)
 /// It means that a pixel alone represent 1/8 of a byte (a character).
-fn data_to_frames_method_bw(
-    inject_options: &InjectOptions,
-    data: Vec<u8>,
-) -> Vec<VideoFrame> {
+fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index: usize = 0;
     let mut bit_index: u8 = 0;
