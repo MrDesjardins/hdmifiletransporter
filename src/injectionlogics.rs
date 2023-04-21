@@ -4,7 +4,9 @@ use opencv::{
 };
 use std::fs;
 
+
 use crate::{
+    bitlogics::{get_bit_at, get_rgb_for_bit},
     injectionextraction::EOF_CHAR,
     options::{AlgoFrame, InjectOptions},
     videoframe::VideoFrame,
@@ -42,7 +44,7 @@ pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<Vide
     let frames = if inject_options.algo == AlgoFrame::RGB {
         data_to_frames_method_rgb(&inject_options, data)
     } else {
-        data_to_frames_method_blackwhite(&inject_options, data)
+        data_to_frames_method_bw(&inject_options, data)
     };
     frames
 }
@@ -87,26 +89,10 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
     frames
 }
 
-fn get_bit_at(input: u8, n: u8) -> bool {
-    if n < 32 {
-        input & (1 << n) != 0 // 1 == true, 0 == false
-    } else {
-        false
-    }
-}
-
-fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
-    if bit {
-        // If true (1) = white = 255,255,255
-        (255, 255, 255)
-    } else {
-        (0, 0, 0) // black = 0,0,0
-    }
-}
 /// Move data into many frames of the video using bit and black and white
 /// Each data (character) is going to 8 pixels. Each pixel is black (0) or white (1)
 /// It means that a pixel alone represent 1/8 of a byte (a character).
-fn data_to_frames_method_blackwhite(
+fn data_to_frames_method_bw(
     inject_options: &InjectOptions,
     data: Vec<u8>,
 ) -> Vec<VideoFrame> {
@@ -308,7 +294,7 @@ mod injectionlogics_tests {
             algo: crate::options::AlgoFrame::BW,
         };
         // Text: This is a test, 14 chars
-        let frames = data_to_frames_method_blackwhite(
+        let frames = data_to_frames_method_bw(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
         );
@@ -329,7 +315,7 @@ mod injectionlogics_tests {
         };
         // Text: This
         // T 54 = 0011 0110
-        let frames = data_to_frames_method_blackwhite(&options, vec![54, 68, 69, 73]);
+        let frames = data_to_frames_method_bw(&options, vec![54, 68, 69, 73]);
         let first_frame = &frames[0];
         let color1 = first_frame.read_coordinate_color(0, 0);
         assert_eq!(color1.r, 0);
@@ -347,18 +333,5 @@ mod injectionlogics_tests {
         assert_eq!(color4.r, 0);
         assert_eq!(color4.g, 0);
         assert_eq!(color4.b, 0);
-    }
-
-    #[test]
-    fn test_get_bit_at() {
-        let value = 54; // 0011 0110
-        assert_eq!(get_bit_at(value, 7), false);
-        assert_eq!(get_bit_at(value, 6), false);
-        assert_eq!(get_bit_at(value, 5), true);
-        assert_eq!(get_bit_at(value, 4), true);
-        assert_eq!(get_bit_at(value, 3), false);
-        assert_eq!(get_bit_at(value, 2), true);
-        assert_eq!(get_bit_at(value, 1), true);
-        assert_eq!(get_bit_at(value, 0), false);
     }
 }

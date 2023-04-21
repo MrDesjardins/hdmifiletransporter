@@ -2,6 +2,7 @@ use opencv::videoio::VideoCapture;
 
 use std::fs;
 
+use crate::bitlogics::{get_bit_from_rgb, mutate_byte};
 use crate::injectionextraction::map_to_size;
 use crate::options::AlgoFrame;
 use crate::videoframe::VideoFrame;
@@ -145,7 +146,31 @@ fn frame_to_data_method_rgb(source: &VideoFrame, actual_size: Size, info_size: u
 }
 
 fn frame_to_data_method_bw(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u8> {
-   todo!()
+    let width = actual_size.width;
+    let height = actual_size.height;
+    let size = info_size as usize;
+
+    let mut byte_data: Vec<u8> = Vec::new();
+    let mut bit_index: u8 = 0;
+    let mut data: u8 = 0;
+    for y in (0..height).step_by(size) {
+        for x in (0..width).step_by(size) {
+            let rgb = get_pixel(source, x, y, info_size);
+            let bit_value = get_bit_from_rgb(rgb);
+            mutate_byte(&mut data, bit_value, bit_index);
+            bit_index = if bit_index == 7 { 0 } else { bit_index + 1 };
+            if bit_index == 0 {
+                if data != EOF_CHAR {
+                    byte_data.push(data);
+                    data = 0;
+                } else {
+                    return byte_data; // The frame has reach a point that it has no more relevant information
+                }
+            }
+        }
+    }
+
+    byte_data
 }
 
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
@@ -191,4 +216,42 @@ pub fn data_to_files(extract_options: &ExtractOptions, whole_movie_data: Vec<u8>
         whole_movie_data,
     )
     .expect("Writing file fail");
+}
+
+#[cfg(test)]
+mod extractionlogics_tests {
+    use super::*;
+
+    #[test]
+    fn test_frame_to_data_method_rgb() {
+        let size = map_to_size(8, 8);
+        let mut frame = VideoFrame::new(8, 8);
+        frame.write(10, 20, 30, 0, 0, 1);
+        frame.write(40, 50, 60, 1, 0, 1);
+
+        let result = frame_to_data_method_rgb(&frame, size, 1);
+        assert_eq!(result[0], 10);
+        assert_eq!(result[1], 20);
+        assert_eq!(result[2], 30);
+        assert_eq!(result[3], 40);
+        assert_eq!(result[4], 50);
+        assert_eq!(result[5], 60);
+    }
+    #[test]
+    fn test_frame_to_data_method_bw() {
+        let size = map_to_size(8, 8);
+        let mut frame = VideoFrame::new(8, 8);
+        let write_data = 0b0011_1011;
+        frame.write(255, 255, 255, 0, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 1, 0, 1); // Black 1 bit
+        frame.write(0, 0, 0, 2, 0, 1); // White 0 bit
+        frame.write(255, 255, 255, 3, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 4, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 5, 0, 1); // Black 1 bit
+        frame.write(0, 0, 0, 6, 0, 1); // White 0 bit
+        frame.write(0, 0, 0, 7, 0, 1); // White 0 bit
+
+        let result = frame_to_data_method_bw(&frame, size, 1);
+        assert_eq!(result[0], write_data);
+    }
 }

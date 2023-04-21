@@ -54,6 +54,7 @@ execute_with_video_options(options);
 mod extractionlogics;
 mod injectionextraction;
 mod injectionlogics;
+mod bitlogics;
 pub mod options;
 mod videoframe;
 
