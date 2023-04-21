@@ -4,7 +4,11 @@ use opencv::{
 };
 use std::fs;
 
-use crate::{injectionextraction::EOF_CHAR, options::{InjectOptions, AlgoFrame}, videoframe::VideoFrame};
+use crate::{
+    injectionextraction::EOF_CHAR,
+    options::{AlgoFrame, InjectOptions},
+    videoframe::VideoFrame,
+};
 
 pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
     fs::read(&options.file_path).unwrap_or_else(|err| {
@@ -83,6 +87,22 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
     frames
 }
 
+fn get_bit_at(input: u8, n: u8) -> bool {
+    if n < 32 {
+        input & (1 << n) != 0 // 1 == true, 0 == false
+    } else {
+        false
+    }
+}
+
+fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
+    if bit {
+        // If true (1) = white = 255,255,255
+        (255, 255, 255)
+    } else {
+        (0, 0, 0) // black = 0,0,0
+    }
+}
 /// Move data into many frames of the video using bit and black and white
 /// Each data (character) is going to 8 pixels. Each pixel is black (0) or white (1)
 /// It means that a pixel alone represent 1/8 of a byte (a character).
@@ -90,7 +110,41 @@ fn data_to_frames_method_blackwhite(
     inject_options: &InjectOptions,
     data: Vec<u8>,
 ) -> Vec<VideoFrame> {
-    todo!()
+    let mut frames: Vec<VideoFrame> = Vec::new();
+    let mut data_index: usize = 0;
+    let mut bit_index: u8 = 0;
+
+    while data_index < data.len() {
+        // Create a single frame
+        let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
+        for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
+            for x in (0..inject_options.width).step_by(usize::from(inject_options.size)) {
+                // For each pixel of the frame, extract a bit of the active byte of the vector
+                if data_index < data.len() {
+                    // Still have a char, we get the bit we are at of that char
+                    let bit = get_bit_at(data[data_index], bit_index);
+                    let (r, g, b) = get_rgb_for_bit(bit);
+                    frame.write(r, g, b, x, y, inject_options.size);
+                } else {
+                    // If there is no char, we keep filling with the EOF_CHAR char to complete frame
+                    let bit = get_bit_at(EOF_CHAR, bit_index);
+                    let (r, g, b) = get_rgb_for_bit(bit);
+                    frame.write(r, g, b, x, y, inject_options.size);
+                }
+
+                // Rotate from 0 to 7 inclusively
+                // Change character only when all bit of the current one is done
+                if bit_index == 7 {
+                    data_index += 1; // 1 because increase 1 character at a time
+                    bit_index = 0;
+                } else {
+                    bit_index += 1; // Increase only the bit because we have not yet written all the bit of the char (8 bits in 1 byte = 1 char)
+                }
+            }
+        }
+        frames.push(frame);
+    } // Step 4: Loop until the frame is full or that there is no mode byte
+    frames
 }
 
 pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
@@ -239,5 +293,72 @@ mod injectionlogics_tests {
                 assert_eq!(bgr[0], 0);
             }
         }
+    }
+
+    #[test]
+    fn test_data_to_frames_method_blackwhite() {
+        // 2x2 = 4 bits per frame. With 14 chars we have 14x8bits = 112bits. 112/4 = 28 frames
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 2,
+            width: 2,
+            size: 1,
+            algo: crate::options::AlgoFrame::BW,
+        };
+        // Text: This is a test, 14 chars
+        let frames = data_to_frames_method_blackwhite(
+            &options,
+            vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+        );
+        assert_eq!(frames.len(), 28)
+    }
+
+    #[test]
+    fn test_data_to_frames_method_blackwhite_remaining_color_eof() {
+        // 2x2 = 4 bits per frame. With 4 chars we have 4 = 32bits. 32/4 = 8 frames
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 2,
+            width: 2,
+            size: 1,
+            algo: crate::options::AlgoFrame::BW,
+        };
+        // Text: This
+        // T 54 = 0011 0110
+        let frames = data_to_frames_method_blackwhite(&options, vec![54, 68, 69, 73]);
+        let first_frame = &frames[0];
+        let color1 = first_frame.read_coordinate_color(0, 0);
+        assert_eq!(color1.r, 0);
+        assert_eq!(color1.g, 0);
+        assert_eq!(color1.b, 0);
+        let color2 = first_frame.read_coordinate_color(1, 0);
+        assert_eq!(color2.r, 255);
+        assert_eq!(color2.g, 255);
+        assert_eq!(color2.b, 255);
+        let color3 = first_frame.read_coordinate_color(0, 1);
+        assert_eq!(color3.r, 255);
+        assert_eq!(color3.g, 255);
+        assert_eq!(color3.b, 255);
+        let color4 = first_frame.read_coordinate_color(1, 1);
+        assert_eq!(color4.r, 0);
+        assert_eq!(color4.g, 0);
+        assert_eq!(color4.b, 0);
+    }
+
+    #[test]
+    fn test_get_bit_at() {
+        let value = 54; // 0011 0110
+        assert_eq!(get_bit_at(value, 7), false);
+        assert_eq!(get_bit_at(value, 6), false);
+        assert_eq!(get_bit_at(value, 5), true);
+        assert_eq!(get_bit_at(value, 4), true);
+        assert_eq!(get_bit_at(value, 3), false);
+        assert_eq!(get_bit_at(value, 2), true);
+        assert_eq!(get_bit_at(value, 1), true);
+        assert_eq!(get_bit_at(value, 0), false);
     }
 }
