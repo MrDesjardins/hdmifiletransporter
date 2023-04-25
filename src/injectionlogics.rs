@@ -93,7 +93,11 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
 fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index: usize = 0;
-    let mut bit_index: u8 = 0;
+    let mut bit_index: u8 = 7;
+
+    if inject_options.width * inject_options.height / u16::from(inject_options.size) < 8 {
+        panic!("The frame size must be at least big enough to accept a single character");
+    }
 
     while data_index < data.len() {
         // Create a single frame
@@ -115,11 +119,11 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
 
                 // Rotate from 0 to 7 inclusively
                 // Change character only when all bit of the current one is done
-                if bit_index == 7 {
-                    data_index += 1; // 1 because increase 1 character at a time
-                    bit_index = 0;
+                if bit_index > 1 {
+                    bit_index -= 1; // Decrease only the bit because we have not yet written all the bit of the char (8 bits in 1 byte = 1 char)
                 } else {
-                    bit_index += 1; // Increase only the bit because we have not yet written all the bit of the char (8 bits in 1 byte = 1 char)
+                    data_index += 1; // 1 because increase 1 character at a time
+                    bit_index = 7; // Reset
                 }
             }
         }
@@ -278,13 +282,13 @@ mod injectionlogics_tests {
 
     #[test]
     fn test_data_to_frames_method_blackwhite() {
-        // 2x2 = 4 bits per frame. With 14 chars we have 14x8bits = 112bits. 112/4 = 28 frames
+        // 2x2 = 4 bits per frame. With 14 chars we have 14x8bits = 112bits. 112/16 = 7 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 2,
-            width: 2,
+            height: 4,
+            width: 4,
             size: 1,
             algo: crate::options::AlgoFrame::BW,
         };
@@ -293,7 +297,7 @@ mod injectionlogics_tests {
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
         );
-        assert_eq!(frames.len(), 28)
+        assert_eq!(frames.len(), 7)
     }
 
     #[test]
@@ -303,8 +307,8 @@ mod injectionlogics_tests {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 2,
-            width: 2,
+            height: 4,
+            width: 4,
             size: 1,
             algo: crate::options::AlgoFrame::BW,
         };
@@ -317,16 +321,16 @@ mod injectionlogics_tests {
         assert_eq!(color1.g, 0);
         assert_eq!(color1.b, 0);
         let color2 = first_frame.read_coordinate_color(1, 0);
-        assert_eq!(color2.r, 255);
-        assert_eq!(color2.g, 255);
-        assert_eq!(color2.b, 255);
-        let color3 = first_frame.read_coordinate_color(0, 1);
+        assert_eq!(color2.r, 0);
+        assert_eq!(color2.g, 0);
+        assert_eq!(color2.b, 0);
+        let color3 = first_frame.read_coordinate_color(2, 0);
         assert_eq!(color3.r, 255);
         assert_eq!(color3.g, 255);
         assert_eq!(color3.b, 255);
-        let color4 = first_frame.read_coordinate_color(1, 1);
-        assert_eq!(color4.r, 0);
-        assert_eq!(color4.g, 0);
-        assert_eq!(color4.b, 0);
+        let color4 = first_frame.read_coordinate_color(3, 0);
+        assert_eq!(color4.r, 255);
+        assert_eq!(color4.g, 255);
+        assert_eq!(color4.b, 255);
     }
 }

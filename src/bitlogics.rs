@@ -92,4 +92,18 @@ mod injectionlogics_tests {
         mutate_byte(&mut input, false, 1);
         assert_eq!(input, 0b0000_0000)
     }
+    #[test]
+    fn test_mutate_byte_many_mutate() {
+        let mut input: u8 = 0b0000_0000;
+        let expected:u8= 0b0011_1011;
+        mutate_byte(&mut input, false, 7);
+        mutate_byte(&mut input, false, 6);
+        mutate_byte(&mut input, true, 5);
+        mutate_byte(&mut input, true, 4);
+        mutate_byte(&mut input, true, 3);
+        mutate_byte(&mut input, false, 2);
+        mutate_byte(&mut input, true, 1);
+        mutate_byte(&mut input, true, 0);
+        assert_eq!(input, expected)
+    }
 }

@@ -51,14 +51,14 @@ let options = VideoOptions::ExtractFromVideo({
 execute_with_video_options(options);
 */
 
+mod bitlogics;
 mod extractionlogics;
 mod injectionextraction;
 mod injectionlogics;
-mod bitlogics;
 pub mod options;
 mod videoframe;
 
-use extractionlogics::{data_to_files, extract_relevant_frames};
+use extractionlogics::data_to_files;
 use injectionlogics::{create_starting_frame, file_to_data};
 
 // Re-export for external access (main.rs)
@@ -80,8 +80,7 @@ pub fn execute_with_video_options(options: VideoOptions) {
         }
         VideoOptions::ExtractFromVideo(n) => {
             let frames = video_to_frames(&n);
-            let ordered_frames = extract_relevant_frames(&n, frames);
-            let data = frames_to_data(&n, ordered_frames);
+            let data = frames_to_data(&n, frames);
             data_to_files(&n, data);
         }
     }

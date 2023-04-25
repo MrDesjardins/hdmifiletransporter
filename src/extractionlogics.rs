@@ -13,10 +13,14 @@ use opencv::videoio::CAP_ANY;
 
 use crate::{injectionextraction::EOF_CHAR, options::ExtractOptions};
 
+struct FrameBytesInfo {
+    pub bytes: Vec<u8>,
+    pub is_red_frame: bool,
+}
+
 pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
     let mut video = VideoCapture::from_file(&extract_options.video_file_path, CAP_ANY)
         .expect("Could not open video path");
-
     let mut all_frames = Vec::new();
     loop {
         let mut frame = Mat::default();
@@ -34,10 +38,11 @@ pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
                 all_frames.push(frame);
             }
             Err(err) => {
-                panic!("{:?}", err);
+                panic!("Reading from VideoFrame: {:?}", err);
             }
         }
     }
+
     all_frames
 }
 
@@ -46,133 +51,124 @@ pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
 pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>) -> Vec<u8> {
     let mut byte_data = Vec::new();
     let actual_size = map_to_size(extract_options.width, extract_options.height);
+    let mut is_red_frame_found = false;
+    let mut relevant_frame_count = 0;
+    println!("Initial Frames count: {}", frames.len());
     for frame in frames.iter() {
         let frame_data = if extract_options.algo == AlgoFrame::RGB {
             frame_to_data_method_rgb(frame, actual_size, extract_options.size)
         } else {
             frame_to_data_method_bw(frame, actual_size, extract_options.size)
         };
-        byte_data.extend(frame_data);
+        if is_red_frame_found && !frame_data.is_red_frame {
+            byte_data.extend(frame_data.bytes); // Between two red frames, we accumulate
+            relevant_frame_count += 1;
+        } else if is_red_frame_found && frame_data.is_red_frame {
+            return byte_data; // We have all our frames
+        } else if !is_red_frame_found && frame_data.is_red_frame {
+            is_red_frame_found = true; // From that point, we start accumulating byte
+        }
     }
+    println!("Relevant Frames count: {}", relevant_frame_count);
     byte_data
-}
-
-/// Loop each frame to find the one that is fully red
-/// Accumulate each frame after the red one until the end or until reach another red frame
-pub fn extract_relevant_frames(
-    extract_options: &ExtractOptions,
-    frames: Vec<VideoFrame>,
-) -> Vec<VideoFrame> {
-    let mut relevant_frames = Vec::new();
-    let actual_size = map_to_size(extract_options.width, extract_options.height);
-
-    let mut starting_frame_found = false;
-    for frame in frames.iter() {
-        let current_frame_is_starting = is_starting_frame(frame, actual_size, extract_options.size);
-
-        if starting_frame_found && current_frame_is_starting {
-            // Code went back to the starting frame
-            break;
-        }
-
-        if starting_frame_found && !current_frame_is_starting {
-            // We found in the past the starting frame and the current is not the current frame (first or subsequent from loop)
-            relevant_frames.push(frame.clone());
-        }
-
-        if !starting_frame_found && current_frame_is_starting {
-            // Starting frame found, from there we start accumulating
-            starting_frame_found = true;
-        }
-    }
-
-    relevant_frames
-}
-
-/// Indicate if the frame is the starting frame
-fn is_starting_frame(source: &VideoFrame, actual_size: Size, info_size: u8) -> bool {
-    let width = actual_size.width;
-    let height = actual_size.height;
-    let size = info_size as usize;
-
-    for y in (0..height).step_by(size) {
-        for x in (0..width).step_by(size) {
-            let rgb = get_pixel(source, x, y, info_size);
-            if rgb[0] != 255 {
-                return false;
-            }
-            if rgb[1] != 0 {
-                return false;
-            }
-            if rgb[2] != 0 {
-                return false;
-            }
-        }
-    }
-
-    true
 }
 
 /// Extract from a frame all the data. Once the end of file character is found, the loop is done.
+///
+/// Handle the case that we found a EOF character
+///
 /// # Source
 /// https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L280
-fn frame_to_data_method_rgb(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u8> {
+fn frame_to_data_method_rgb(
+    source: &VideoFrame,
+    actual_size: Size,
+    info_size: u8,
+) -> FrameBytesInfo {
     let width = actual_size.width;
     let height = actual_size.height;
     let size = info_size as usize;
-
-    let mut byte_data: Vec<u8> = Vec::new();
+    let mut result = FrameBytesInfo {
+        bytes: Vec::new(),
+        is_red_frame: false,
+    };
+    let mut rgbs = Vec::new();
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
+            rgbs.push(vec![rgb[0], rgb[1], rgb[2]]);
             if rgb[0] == EOF_CHAR {
-                return byte_data;
+                return result;
             }
-            byte_data.push(rgb[0]);
+            result.bytes.push(rgb[0]);
 
             if rgb[1] == EOF_CHAR {
-                return byte_data;
+                return result;
             }
-            byte_data.push(rgb[1]);
+            result.bytes.push(rgb[1]);
 
             if rgb[2] == EOF_CHAR {
-                return byte_data;
+                return result;
             }
-            byte_data.push(rgb[2]);
+            result.bytes.push(rgb[2]);
         }
     }
-
-    byte_data
+    let is_red_frame = check_red_frame(rgbs);
+    result.is_red_frame = is_red_frame;
+    result
 }
 
-fn frame_to_data_method_bw(source: &VideoFrame, actual_size: Size, info_size: u8) -> Vec<u8> {
+/// Extract from a frame all the data
+///
+/// Handle the case that we found a EOF character
+fn frame_to_data_method_bw(
+    source: &VideoFrame,
+    actual_size: Size,
+    info_size: u8,
+) -> FrameBytesInfo {
     let width = actual_size.width;
     let height = actual_size.height;
     let size = info_size as usize;
-
-    let mut byte_data: Vec<u8> = Vec::new();
-    let mut bit_index: u8 = 0;
+    let mut result = FrameBytesInfo {
+        bytes: Vec::new(),
+        is_red_frame: false,
+    };
+    let mut bit_index: u8 = 7;
     let mut data: u8 = 0;
+    let mut rgbs = Vec::new();
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
+            rgbs.push(vec![rgb[0], rgb[1], rgb[2]]);
             let bit_value = get_bit_from_rgb(rgb);
             mutate_byte(&mut data, bit_value, bit_index);
-            bit_index = if bit_index == 7 { 0 } else { bit_index + 1 };
-            if bit_index == 0 {
+            bit_index = if bit_index == 0 { 7 } else { bit_index - 1 };
+            if bit_index == 7 {
                 if data != EOF_CHAR {
-                    byte_data.push(data);
+                    result.bytes.push(data);
                     data = 0;
                 } else {
-                    return byte_data; // The frame has reach a point that it has no more relevant information
+                    return result; // The frame has reach a point that it has no more relevant information
                 }
             }
         }
     }
-
-    byte_data
+    let is_red_frame = check_red_frame(rgbs);
+    result.is_red_frame = is_red_frame;
+    result
 }
 
+/// Check if the list of rgbs are all redish
+/// The list should be the content of a single frame
+pub fn check_red_frame(list_rgbs: Vec<Vec<u8>>) -> bool {
+    for rgb in list_rgbs.iter() {
+        // Red is 255, 0 ,0 but we give some room
+        if !(rgb[0] >= 220 && rgb[1] <= 30 && rgb[2] <= 30) {
+            return false;
+        }
+    }
+
+    return true;
+}
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
 /// # Source
 /// Code is a copy of https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L121
@@ -230,28 +226,101 @@ mod extractionlogics_tests {
         frame.write(40, 50, 60, 1, 0, 1);
 
         let result = frame_to_data_method_rgb(&frame, size, 1);
-        assert_eq!(result[0], 10);
-        assert_eq!(result[1], 20);
-        assert_eq!(result[2], 30);
-        assert_eq!(result[3], 40);
-        assert_eq!(result[4], 50);
-        assert_eq!(result[5], 60);
+        assert_eq!(result.bytes[0], 10);
+        assert_eq!(result.bytes[1], 20);
+        assert_eq!(result.bytes[2], 30);
+        assert_eq!(result.bytes[3], 40);
+        assert_eq!(result.bytes[4], 50);
+        assert_eq!(result.bytes[5], 60);
+        assert_eq!(result.is_red_frame, false);
     }
+
     #[test]
     fn test_frame_to_data_method_bw() {
         let size = map_to_size(8, 8);
         let mut frame = VideoFrame::new(8, 8);
         let write_data = 0b0011_1011;
-        frame.write(255, 255, 255, 0, 0, 1); // Black 1 bit
-        frame.write(255, 255, 255, 1, 0, 1); // Black 1 bit
-        frame.write(0, 0, 0, 2, 0, 1); // White 0 bit
+        
+        frame.write(0, 0, 0, 0, 0, 1); // White 0 bit
+        frame.write(0, 0, 0, 1, 0, 1); // White 0 bit
+        frame.write(255, 255, 255, 2, 0, 1); // Black 1 bit
         frame.write(255, 255, 255, 3, 0, 1); // Black 1 bit
         frame.write(255, 255, 255, 4, 0, 1); // Black 1 bit
-        frame.write(255, 255, 255, 5, 0, 1); // Black 1 bit
-        frame.write(0, 0, 0, 6, 0, 1); // White 0 bit
-        frame.write(0, 0, 0, 7, 0, 1); // White 0 bit
-
+        frame.write(0, 0, 0, 2, 5, 1); // White 0 bit
+        frame.write(255, 255, 255, 6, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 7, 0, 1); // Black 1 bit
+        
         let result = frame_to_data_method_bw(&frame, size, 1);
-        assert_eq!(result[0], write_data);
+        assert_eq!(result.bytes[0], write_data);
+        assert_eq!(result.is_red_frame, false);
+    }
+
+    #[test]
+    fn test_frame_to_data_method_bw_with_eof() {
+        let size = map_to_size(8, 8);
+        let mut frame = VideoFrame::new(8, 8);
+        let write_data = 0b0011_1011;
+        frame.write(0, 0, 0, 0, 0, 1); // White 0 bit
+        frame.write(0, 0, 0, 1, 0, 1); // White 0 bit
+        frame.write(255, 255, 255, 2, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 3, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 4, 0, 1); // Black 1 bit
+        frame.write(0, 0, 0, 5, 0, 1); // White 0 bit
+        frame.write(255, 255, 255, 6, 0, 1); // Black 1 bit
+        frame.write(255, 255, 255, 7, 0, 1); // Black 1 bit
+
+        // EOF = 4 = 0000_1000
+        frame.write(0, 0, 0, 0, 1, 1); // White 0 bit EOF
+        frame.write(0, 0, 0, 1, 1, 1); // White 0 bit EOF
+        frame.write(0, 0, 0, 2, 1, 1); // White 0 bit EOF
+        frame.write(0, 0, 0, 3, 1, 1); // White 0 bit EOF
+        frame.write(0, 0, 0, 4, 1, 1); // White 0 bit EOF
+        frame.write(255, 255, 255, 5, 1, 1); // Black 1 bit EOF
+        frame.write(0, 0, 0, 6, 1, 1); // White 0 bit EOF
+        frame.write(0, 0, 0, 7, 1, 1); // White 0 bit EOF
+        let result = frame_to_data_method_bw(&frame, size, 1);
+        assert_eq!(result.bytes[0], write_data); // First
+        assert_eq!(result.bytes.len(), 1); // Not the EOF, only the write_data
+        assert_eq!(result.is_red_frame, false);
+    }
+
+    #[test]
+    fn text_check_red_frame_white() {
+        let mut rgbs = Vec::new();
+        rgbs.push(vec![0, 0, 0]);
+        let result = check_red_frame(rgbs);
+        assert_eq!(result, false)
+    }
+
+    #[test]
+    fn text_check_red_frame_black() {
+        let mut rgbs = Vec::new();
+        rgbs.push(vec![255, 255, 255]);
+        let result = check_red_frame(rgbs);
+        assert_eq!(result, false)
+    }
+
+    #[test]
+    fn text_check_red_frame_red() {
+        let mut rgbs = Vec::new();
+        rgbs.push(vec![255, 0, 0]);
+        let result = check_red_frame(rgbs);
+        assert_eq!(result, true)
+    }
+
+    #[test]
+    fn text_check_red_frame_almost_red() {
+        let mut rgbs = Vec::new();
+        rgbs.push(vec![245, 5, 10]);
+        let result = check_red_frame(rgbs);
+        assert_eq!(result, true)
+    }
+
+    #[test]
+    fn text_check_red_frame_too_far_from_red() {
+        let mut rgbs = Vec::new();
+        rgbs.push(vec![245, 45, 10]);
+        let result = check_red_frame(rgbs);
+        assert_eq!(result, false)
     }
 }
