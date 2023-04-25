@@ -95,7 +95,9 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
     let mut data_index: usize = 0;
     let mut bit_index: u8 = 7;
 
-    if inject_options.width * inject_options.height / u16::from(inject_options.size) < 8 {
+    let total_size = u32::from(inject_options.width) * u32::from(inject_options.height)
+        / u32::from(inject_options.size);
+    if total_size < 8 {
         panic!("The frame size must be at least big enough to accept a single character");
     }
 
