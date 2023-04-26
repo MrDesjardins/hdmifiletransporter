@@ -122,17 +122,17 @@ hdmifiletransporter -m inject -i testAssets/test1.zip -o out1.mp4
 ### Inject Text to Video
 
 ```sh
-cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.avi --fps 30 --height 1080 --width 1920 --size 1
+cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4 --fps 30 --height 1080 --width 1920 --size 1
 
-cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.avi --fps 30 --height 1080 --width 1920 --size 1 -a bw
+cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4 --fps 30 --height 1080 --width 1920 --size 1 -a bw
 
 ```
 ### Extract Text from Video
 
 ```sh
-cargo run -- -m extract -i outputs/out1.avi -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1
+cargo run -- -m extract -i outputs/out1.mp4 -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1
 
-cargo run -- -m extract -i outputs/out1.avi -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1 -a bw
+cargo run -- -m extract -i outputs/out1.mp4 -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1 -a bw
 ```
 # Benchmark
 
@@ -161,3 +161,12 @@ cargo publish
 # Debugging
 
 You must install [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) if you want to set break point with VsCode.
+
+# ffmpeg Command to Read From Other Computer 
+
+The generated video file must be ran at the same resolution as the one available for your video card. Then, on the other side of the card run this command until at least you see two times a red frames. If you are on a Windows machine, the video card might not be accessible (easily) using WSL. Thus, you might want to install and run ffmeg on a Windows terminal.
+
+```sh
+ffmpeg -r 30 -f dshow -s 1920x1080 -vcodec mjpeg -i video="USB Video" -r 30 out.mp4
+```
+

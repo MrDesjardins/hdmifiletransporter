@@ -45,7 +45,7 @@ impl VideoFrame {
                         bgr[1] = g;
                         bgr[0] = b;
                     }
-                    Err(e) => panic!("{:?}", e),
+                    Err(e) => panic!("x:{}, y:{}, i:{}, j:{}, Error Message:{:?}", x, y, i, j, e),
                 }
             }
         }
@@ -81,8 +81,8 @@ impl VideoFrame {
 mod videoframe_tests {
     use super::VideoFrame;
     use opencv::core::prelude::*;
-    use opencv::prelude::MatTraitConstManual;
     use opencv::core::{Mat, CV_8UC3};
+    use opencv::prelude::MatTraitConstManual;
     #[test]
     fn test_new_create_image_size() {
         let result = VideoFrame::new(100, 50);
@@ -125,12 +125,11 @@ mod videoframe_tests {
     //     let videoframe = VideoFrame::from(mat, 1);
     //     let unwrapped = videoframe.unwrap();
     //     assert!(&unwrapped.image as *const Mat == ref1);
-        
+
     // }
 
     #[test]
     fn test_from_define_size() {
-
         unsafe {
             let mat = Mat::new_rows_cols(100, 200, CV_8UC3).unwrap();
             let videoframe = VideoFrame::from(mat, 1);
@@ -138,7 +137,5 @@ mod videoframe_tests {
             assert_eq!(unwrapped.frame_size.width, 200);
             assert_eq!(unwrapped.frame_size.height, 100);
         }
- 
-        
     }
 }

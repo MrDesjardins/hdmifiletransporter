@@ -34,6 +34,7 @@
         }
       },
       "args": [
+        "-m",
         "inject",
         "-i",
         "testAssets/text1.txt",
@@ -42,11 +43,13 @@
         "--fps",
         "30",
         "--height",
-        "1920",
-        "--width",
         "1080",
+        "--width",
+        "1920",
         "--size",
-        "1"
+        "40",
+        "-a",
+        "bw"
       ],
       "cwd": "${workspaceFolder}"
     },
@@ -75,9 +78,9 @@
         "--fps",
         "30",
         "--height",
-        "1920",
-        "--width",
         "1080",
+        "--width",
+        "1920",
         "--size",
         "1"
       ],

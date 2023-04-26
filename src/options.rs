@@ -137,7 +137,15 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     .input_file_path
                     .unwrap_or_else(|| panic!("Missing input file"));
                 println!("Input file: {}", file_path);
-
+                let size = args.size.unwrap_or(1);
+                let height = args.height.unwrap_or(2160);
+                let width = args.width.unwrap_or(3840);
+                if i32::from(height) % i32::from(size) != 0 {
+                    panic!("Height and size are not a divided round number");
+                }
+                if i32::from(width) % i32::from(size) != 0 {
+                    panic!("Width and size are not a divided round number");
+                }
                 VideoOptions::InjectInVideo({
                     InjectOptions {
                         file_path,
@@ -148,7 +156,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                         fps: args.fps.unwrap_or(30),
                         height: args.height.unwrap_or(2160),
                         width: args.width.unwrap_or(3840),
-                        algo: args.algo.unwrap_or(AlgoFrame::RGB)
+                        algo: args.algo.unwrap_or(AlgoFrame::RGB),
                     }
                 })
             }
@@ -164,7 +172,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     fps: args.fps.unwrap_or(30),
                     height: args.height.unwrap_or(2160),
                     width: args.width.unwrap_or(3840),
-                    algo: args.algo.unwrap_or(AlgoFrame::RGB)
+                    algo: args.algo.unwrap_or(AlgoFrame::RGB),
                 }
             }),
         },
@@ -269,7 +277,7 @@ mod options_tests {
             output_video_path: None,
             size: None,
             width: None,
-            algo: None
+            algo: None,
         });
         let unwrapped_options = options.unwrap();
         if let ExtractFromVideo(op) = unwrapped_options {

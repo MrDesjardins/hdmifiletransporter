@@ -121,7 +121,7 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
 
                 // Rotate from 0 to 7 inclusively
                 // Change character only when all bit of the current one is done
-                if bit_index > 1 {
+                if bit_index > 0 {
                     bit_index -= 1; // Decrease only the bit because we have not yet written all the bit of the char (8 bits in 1 byte = 1 char)
                 } else {
                     data_index += 1; // 1 because increase 1 character at a time
@@ -143,10 +143,11 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
     // See list of codec here: https://learn.fotoware.com/On-Premises/Getting_started/Metadata_in_the_FotoWare_system/04_Operators_to_search_in_specific_fields/FourCC_codes
     // Careful, codec and file extension must match
 
-    let fourcc = VideoWriter::fourcc('p', 'n', 'g', ' ');
+    //let fourcc = VideoWriter::fourcc('p', 'n', 'g', ' ');
     //let fourcc =  VideoWriter::fourcc('j', 'p', 'e', 'g');
     //let fourcc = VideoWriter::fourcc('H','2','6','4');
     //let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
+    let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
 
     match fourcc {
         Ok(fourcc_unwrapped) => {
@@ -309,30 +310,83 @@ mod injectionlogics_tests {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 4,
-            width: 4,
+            height: 32,
+            width: 32, // Fits the 4 characters on 1 line
             size: 1,
             algo: crate::options::AlgoFrame::BW,
         };
         // Text: This
-        // T 54 = 0011 0110
-        let frames = data_to_frames_method_bw(&options, vec![54, 68, 69, 73]);
+        // 84 104 105 115
+        // 01010100 01101000 01101001 01110011
+        let frames = data_to_frames_method_bw(&options, vec![84, 104, 105, 115]);
+
+        // Assert what we wrote
         let first_frame = &frames[0];
-        let color1 = first_frame.read_coordinate_color(0, 0);
-        assert_eq!(color1.r, 0);
-        assert_eq!(color1.g, 0);
-        assert_eq!(color1.b, 0);
-        let color2 = first_frame.read_coordinate_color(1, 0);
-        assert_eq!(color2.r, 0);
-        assert_eq!(color2.g, 0);
-        assert_eq!(color2.b, 0);
-        let color3 = first_frame.read_coordinate_color(2, 0);
-        assert_eq!(color3.r, 255);
-        assert_eq!(color3.g, 255);
-        assert_eq!(color3.b, 255);
-        let color4 = first_frame.read_coordinate_color(3, 0);
-        assert_eq!(color4.r, 255);
-        assert_eq!(color4.g, 255);
-        assert_eq!(color4.b, 255);
+        // First Char
+        let mut color = first_frame.read_coordinate_color(0, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(1, 0);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(2, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(3, 0);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(4, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(5, 0);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(6, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(7, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        // Second Char
+        let mut color = first_frame.read_coordinate_color(8, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(9, 0);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(10, 0);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(11, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(12, 0);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(13, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(14, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(15, 0);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
     }
 }
