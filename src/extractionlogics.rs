@@ -53,6 +53,9 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
     let actual_size = map_to_size(extract_options.width, extract_options.height);
     let mut is_red_frame_found = false;
     let mut relevant_frame_count = 0;
+    let mut counter = 0;
+    let mut previous_frame_checksum = 0;
+
     println!("Initial Frames count: {}", frames.len());
     for frame in frames.iter() {
         let frame_data = if extract_options.algo == AlgoFrame::RGB {
@@ -60,10 +63,18 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
         } else {
             frame_to_data_method_bw(frame, actual_size, extract_options.size)
         };
+        counter += 1;
         if is_red_frame_found && !frame_data.is_red_frame {
-            byte_data.extend(frame_data.bytes); // Between two red frames, we accumulate
-            relevant_frame_count += 1;
-        } else if is_red_frame_found && frame_data.is_red_frame {
+            let current_frame_checksum = crc32fast::hash(frame_data.bytes.as_slice());
+            if current_frame_checksum != previous_frame_checksum {
+                println!("Real Frame: #{}", counter);
+                byte_data.extend(frame_data.bytes); // Between two red frames, we accumulate
+                relevant_frame_count += 1;
+                previous_frame_checksum = current_frame_checksum;
+            }
+        } else if is_red_frame_found && frame_data.is_red_frame && byte_data.len() > 0 {
+            // Check length in case there is two or more red frame next to each other
+            println!("Relevant Frames count: {}", relevant_frame_count);
             return byte_data; // We have all our frames
         } else if !is_red_frame_found && frame_data.is_red_frame {
             is_red_frame_found = true; // From that point, we start accumulating byte
@@ -160,14 +171,22 @@ fn frame_to_data_method_bw(
 /// Check if the list of rgbs are all redish
 /// The list should be the content of a single frame
 pub fn check_red_frame(list_rgbs: Vec<Vec<u8>>) -> bool {
+    let mut counter = 0;
     for rgb in list_rgbs.iter() {
         // Red is 255, 0 ,0 but we give some room
-        if !(rgb[0] >= 220 && rgb[1] <= 30 && rgb[2] <= 30) {
-            return false;
+        if rgb[0] >= 220 && rgb[1] <= 30 && rgb[2] <= 30 {
+            counter += 1; // Found one
         }
     }
 
-    return true;
+    let size_list = list_rgbs.len() as f64;
+    let percentage = counter as f64 / size_list as f64;
+    let is_red = percentage > 0.9;
+    println!(
+        "{}/{} = {} frame red. Is red? {}",
+        counter, size_list, percentage, is_red
+    );
+    return is_red;
 }
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
 /// # Source
@@ -240,7 +259,7 @@ mod extractionlogics_tests {
         let size = map_to_size(8, 8);
         let mut frame = VideoFrame::new(8, 8);
         let write_data = 0b0011_1011;
-        
+
         frame.write(0, 0, 0, 0, 0, 1); // White 0 bit
         frame.write(0, 0, 0, 1, 0, 1); // White 0 bit
         frame.write(255, 255, 255, 2, 0, 1); // Black 1 bit
@@ -249,7 +268,7 @@ mod extractionlogics_tests {
         frame.write(0, 0, 0, 2, 5, 1); // White 0 bit
         frame.write(255, 255, 255, 6, 0, 1); // Black 1 bit
         frame.write(255, 255, 255, 7, 0, 1); // Black 1 bit
-        
+
         let result = frame_to_data_method_bw(&frame, size, 1);
         assert_eq!(result.bytes[0], write_data);
         assert_eq!(result.is_red_frame, false);

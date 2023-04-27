@@ -18,6 +18,8 @@ atty = "0.2.14"
 image = "0.24.5"
 magic-crypt = "3.1.12"
 opencv = "0.75.0"
+crc32fast = "1.3.2"
+indicatif = "0.17.3"
 
 [dev-dependencies]
 criterion = "0.4.0"

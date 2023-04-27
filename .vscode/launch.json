@@ -47,7 +47,7 @@
         "--width",
         "1920",
         "--size",
-        "40",
+        "1",
         "-a",
         "bw"
       ],
@@ -72,7 +72,7 @@
         "-m",
         "extract",
         "-i",
-        "outputs/out1.mp4",
+        "outputs/out_bw_red_fix_2.mp4",
         "-o",
         "outputs/text1.txt",
         "--fps",
@@ -82,7 +82,9 @@
         "--width",
         "1920",
         "--size",
-        "1"
+        "1",
+        "-a",
+        "bw"
       ],
       "cwd": "${workspaceFolder}"
     },

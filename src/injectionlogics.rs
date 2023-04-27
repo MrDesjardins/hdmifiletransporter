@@ -20,6 +20,8 @@ pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
     })
 }
 
+use indicatif::ProgressBar;
+
 /// Create a starting frame to indicate that we are starting the transmission of the data
 ///
 /// Needed because the source will play the video with all the data in loop. The consumer
@@ -53,6 +55,17 @@ pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<Vide
 fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index = 0;
+    let total_bytes = data.len() as f64;
+    let total_expected_frame: u64 = (total_bytes
+        / (f64::from(inject_options.width) * f64::from(inject_options.height)
+            / f64::from(inject_options.size)
+            / 8.0)) as u64;
+    let pb = ProgressBar::new(total_expected_frame);
+
+    println!(
+        "Inserting {} bytes into {} frames",
+        total_bytes, total_expected_frame
+    );
 
     while data_index < data.len() {
         // Step 1: Create a single frame
@@ -82,8 +95,10 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
                 data_index += 3; // 3 because R, G, B
             }
         }
+        pb.inc(1);
         frames.push(frame);
     } // Step 4: Loop until the frame is full or that there is no mode byte
+    pb.finish_with_message("done");
     frames
 }
 
@@ -101,6 +116,17 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
         panic!("The frame size must be at least big enough to accept a single character");
     }
 
+    let total_bytes = data.len() as f64;
+    let total_expected_frame: u64 = (total_bytes
+        / (f64::from(inject_options.width) * f64::from(inject_options.height)
+            / f64::from(inject_options.size)
+            / 8.0)) as u64;
+    let pb = ProgressBar::new(total_expected_frame);
+
+    println!(
+        "Inserting {} bytes into {} frames",
+        total_bytes, total_expected_frame
+    );
     while data_index < data.len() {
         // Create a single frame
         let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
@@ -129,8 +155,11 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
                 }
             }
         }
+        pb.inc(1);
         frames.push(frame);
     } // Step 4: Loop until the frame is full or that there is no mode byte
+
+    pb.finish_with_message("done");
     frames
 }
 
@@ -148,6 +177,9 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
     //let fourcc = VideoWriter::fourcc('H','2','6','4');
     //let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
     let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
+    let total_frames = frames.len() as u64;
+    println!("There are {} frames to inject", total_frames);
+    let pb = ProgressBar::new(total_frames);
 
     match fourcc {
         Ok(fourcc_unwrapped) => {
@@ -165,10 +197,12 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
                         video_unwrapped
                             .write(&image)
                             .expect("All frame must be written");
+                        pb.inc(1);
                     }
                     let result_release = video_unwrapped.release();
                     match result_release {
                         Ok(_s) => {
+                            pb.finish_with_message("done");
                             println!("Video saved:{}", options.output_video_file.as_str());
                         }
                         Err(error_release) => {
