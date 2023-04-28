@@ -76,10 +76,10 @@ pub struct InjectOption {
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
 pub struct CliData {
     /// The source of the file to inject the video
-    #[arg(short, long)]
+    #[arg(short = 'i', long)]
     input_file_path: Option<String>,
 
-    #[arg(short, long)]
+    #[arg(short = 'f', long)]
     pub fps: Option<u8>,
 
     /// Depending of how we will translate the information into the video frame,
@@ -92,17 +92,17 @@ pub struct CliData {
     /// # Examples
     /// E.g. A size of 1 means each info is colored into 1 pixel
     /// E.g. A size of 2 means each info is colored into a 2x2 pixel (4 pixels)
-    #[arg(short, long)]
+    #[arg(short = 's', long)]
     pub size: Option<u8>,
 
     #[arg(short = 'g', long)]
     pub height: Option<u16>,
 
-    #[arg(short, long)]
+    #[arg(short = 'w', long)]
     pub width: Option<u16>,
 
     /// When extracting, where to save the file
-    #[arg(short, long)]
+    #[arg(short = 'o', long)]
     pub output_video_path: Option<String>,
 
     /// Possible values:
@@ -116,6 +116,9 @@ pub struct CliData {
     #[arg(short='a', long, value_parser = clap::builder::PossibleValuesParser::new(["rgb", "bw"])
     .map(|s| s.parse::<AlgoFrame>().unwrap()),)]
     pub algo: Option<AlgoFrame>,
+
+    #[arg(short = 'p', long)]
+    pub show_progress: Option<bool>,
 }
 
 /// Extract from the command line (CLI) argument the option.
@@ -157,6 +160,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                         height: args.height.unwrap_or(2160),
                         width: args.width.unwrap_or(3840),
                         algo: args.algo.unwrap_or(AlgoFrame::RGB),
+                        show_progress: args.show_progress.unwrap_or(false),
                     }
                 })
             }
@@ -173,6 +177,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     height: args.height.unwrap_or(2160),
                     width: args.width.unwrap_or(3840),
                     algo: args.algo.unwrap_or(AlgoFrame::RGB),
+                    show_progress: args.show_progress.unwrap_or(false),
                 }
             }),
         },
@@ -190,6 +195,7 @@ pub struct InjectOptions {
     pub height: u16,
     pub size: u8,
     pub algo: AlgoFrame,
+    pub show_progress: bool
 }
 
 #[derive(Clone)]
@@ -201,6 +207,7 @@ pub struct ExtractOptions {
     pub height: u16,
     pub size: u8,
     pub algo: AlgoFrame,
+    pub show_progress: bool
 }
 
 #[derive(Clone)]
@@ -227,6 +234,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            show_progress: None,
         });
     }
     #[test]
@@ -241,6 +249,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            show_progress: None,
         });
     }
     #[test]
@@ -254,6 +263,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            show_progress: None
         });
         let unwrapped_options = options.unwrap();
         if let InjectInVideo(op) = unwrapped_options {
@@ -263,6 +273,7 @@ mod options_tests {
             assert_eq!(op.size, 1);
             assert_eq!(op.output_video_file, "video.mp4");
             assert_eq!(op.algo, AlgoFrame::RGB);
+            assert_eq!(op.show_progress, false);
         } else {
             assert!(true, "Failed to unwrapped inject options");
         }
@@ -278,6 +289,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            show_progress: None,
         });
         let unwrapped_options = options.unwrap();
         if let ExtractFromVideo(op) = unwrapped_options {
@@ -288,6 +300,7 @@ mod options_tests {
             assert_eq!(op.extracted_file_path, "mydata.txt");
             assert_eq!(op.video_file_path, "video.mp4");
             assert_eq!(op.algo, AlgoFrame::RGB);
+            assert_eq!(op.show_progress, false);
         } else {
             assert!(true, "Failed to unwrapped extract options");
         }

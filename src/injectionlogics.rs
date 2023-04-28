@@ -19,8 +19,8 @@ pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
         )
     })
 }
-
 use indicatif::ProgressBar;
+use pretty_bytes_rust::pretty_bytes;
 
 /// Create a starting frame to indicate that we are starting the transmission of the data
 ///
@@ -61,11 +61,12 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
             / f64::from(inject_options.size)
             / 8.0)) as u64;
     let pb = ProgressBar::new(total_expected_frame);
-
-    println!(
-        "Inserting {} bytes into {} frames",
-        total_bytes, total_expected_frame
-    );
+    if inject_options.show_progress {
+        println!(
+            "Inserting {} bytes into {} frames",
+            total_bytes, total_expected_frame
+        );
+    }
 
     while data_index < data.len() {
         // Step 1: Create a single frame
@@ -95,10 +96,14 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
                 data_index += 3; // 3 because R, G, B
             }
         }
-        pb.inc(1);
+        if inject_options.show_progress {
+            pb.inc(1);
+        }
         frames.push(frame);
     } // Step 4: Loop until the frame is full or that there is no mode byte
-    pb.finish_with_message("done");
+    if inject_options.show_progress {
+        pb.finish_with_message("done");
+    }
     frames
 }
 
@@ -116,24 +121,27 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
         panic!("The frame size must be at least big enough to accept a single character");
     }
 
-    let total_bytes = data.len() as f64;
-    let total_expected_frame: u64 = (total_bytes
+    let total_data = data.len();
+    let total_bytes = total_data as f64;
+    let total_expected_frame: u64 = (total_bytes * 8.0
         / (f64::from(inject_options.width) * f64::from(inject_options.height)
             / f64::from(inject_options.size)
-            / 8.0)) as u64;
+            / f64::from(inject_options.size))) as u64;
     let pb = ProgressBar::new(total_expected_frame);
-
-    println!(
-        "Inserting {} bytes into {} frames",
-        total_bytes, total_expected_frame
-    );
-    while data_index < data.len() {
+    if inject_options.show_progress {
+        println!(
+            "Inserting {} bytes into {} frames",
+            pretty_bytes(total_bytes as u64, None),
+            total_expected_frame
+        );
+    }
+    while data_index < total_data {
         // Create a single frame
         let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
         for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
             for x in (0..inject_options.width).step_by(usize::from(inject_options.size)) {
                 // For each pixel of the frame, extract a bit of the active byte of the vector
-                if data_index < data.len() {
+                if data_index < total_data {
                     // Still have a char, we get the bit we are at of that char
                     let bit = get_bit_at(data[data_index], bit_index);
                     let (r, g, b) = get_rgb_for_bit(bit);
@@ -155,11 +163,14 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
                 }
             }
         }
-        pb.inc(1);
+        if inject_options.show_progress {
+            pb.inc(1);
+        }
         frames.push(frame);
     } // Step 4: Loop until the frame is full or that there is no mode byte
-
-    pb.finish_with_message("done");
+    if inject_options.show_progress {
+        pb.finish_with_message("done");
+    }
     frames
 }
 
@@ -197,13 +208,17 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
                         video_unwrapped
                             .write(&image)
                             .expect("All frame must be written");
-                        pb.inc(1);
+                        if options.show_progress {
+                            pb.inc(1);
+                        }
                     }
                     let result_release = video_unwrapped.release();
                     match result_release {
                         Ok(_s) => {
-                            pb.finish_with_message("done");
-                            println!("Video saved:{}", options.output_video_file.as_str());
+                            if options.show_progress {
+                                pb.finish_with_message("done");
+                                println!("Video saved:{}", options.output_video_file.as_str());
+                            }
                         }
                         Err(error_release) => {
                             println!("Error saving the video");
@@ -239,6 +254,7 @@ mod injectionlogics_tests {
             width: 10,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
+            show_progress: false,
         };
         // Text: This is a test
         let frames = data_to_frames_method_rgb(
@@ -259,6 +275,7 @@ mod injectionlogics_tests {
             width: 2,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
+            show_progress: false,
         };
         // Text: This is a test, 14 chars
         let frames = data_to_frames_method_rgb(
@@ -279,6 +296,7 @@ mod injectionlogics_tests {
             width: 2,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
+            show_progress: false,
         };
         // Text: This
         let frames = data_to_frames_method_rgb(&options, vec![54, 68, 69, 73]);
@@ -305,6 +323,7 @@ mod injectionlogics_tests {
             height: h as u16,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
+            show_progress: false,
         };
         let result = create_starting_frame(inject_options);
         for x in 0..w {
@@ -328,6 +347,7 @@ mod injectionlogics_tests {
             width: 4,
             size: 1,
             algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
         };
         // Text: This is a test, 14 chars
         let frames = data_to_frames_method_bw(
@@ -348,6 +368,7 @@ mod injectionlogics_tests {
             width: 32, // Fits the 4 characters on 1 line
             size: 1,
             algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
         };
         // Text: This
         // 84 104 105 115
