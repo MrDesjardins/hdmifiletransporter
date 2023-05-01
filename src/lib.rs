@@ -54,6 +54,7 @@ execute_with_video_options(options);
 */
 
 mod bitlogics;
+mod instructionlogics;
 mod extractionlogics;
 mod injectionextraction;
 mod injectionlogics;
@@ -62,6 +63,7 @@ mod videoframe;
 
 use extractionlogics::data_to_files;
 use injectionlogics::{create_starting_frame, file_to_data};
+use instructionlogics::Instruction;
 
 // Re-export for external access (main.rs)
 pub use crate::extractionlogics::{frames_to_data, video_to_frames};
@@ -75,7 +77,8 @@ pub fn execute_with_video_options(options: VideoOptions) {
         VideoOptions::InjectInVideo(n) => {
             let data = file_to_data(&n);
             let starting_frame = create_starting_frame(&n);
-            let frames = data_to_frames(&n, data);
+            let instruction_data = Instruction::new(data.len() as u64);
+            let frames = data_to_frames(&n, data, instruction_data);
             let mut merged_frames = vec![starting_frame];
             merged_frames.extend(frames);
             frames_to_video(n, merged_frames);

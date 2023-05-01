@@ -1,11 +1,22 @@
-pub fn get_bit_at(input: u8, n: u8) -> bool {
-    if n < 32 {
+/// Get a bit value on a unsigned number
+pub fn get_bit_at64(input: u64, n: u8) -> bool {
+    if n < 64 {
         input & (1 << n) != 0 // 1 == true, 0 == false
     } else {
         false
     }
 }
 
+/// Get a bit value on a unsigned number
+pub fn get_bit_at(input: u8, n: u8) -> bool {
+    if n < 8 {
+        input & (1 << n) != 0 // 1 == true, 0 == false
+    } else {
+        false
+    }
+}
+
+// Get color from a bit
 pub fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
     if bit {
         // If true (1) = white = 255,255,255
@@ -15,19 +26,28 @@ pub fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
     }
 }
 
-/**
- * Get the bit value from black and white value. Does not need to be perfect white and black.
- * Choose the value depending if closer of 0 or 255 in average
- **/
+/// Get the bit value from black and white value. Does not need to be perfect white and black.
+/// Choose the value depending if closer of 0 or 255 in average
 pub fn get_bit_from_rgb(rgb: Vec<u8>) -> bool {
     let sum: u32 = rgb.iter().map(|x| *x as u32).sum();
     sum >= (255_u32 * 3 / 2)
 }
 
+/// Change a bit from an existing byte
 pub fn mutate_byte(byte_val: &mut u8, bit_val: bool, position: u8) {
     let bi = if bit_val { 1 } else { 0 };
     // *byte_val = *byte_val & !(bi << position);
     *byte_val = *byte_val & !(1 << position) | (bi << position);
+}
+
+/// Get a byte from a list of bit
+pub fn get_bytes_from_bits(bits: [bool; 8]) -> u8 {
+    let mut result: u8 = 0;
+    for i in 0..8 {
+        let position = 8 - i - 1 as u8;
+        result += u8::pow(2, i as u32) * bits[position as usize] as u8
+    }
+    result
 }
 
 #[cfg(test)]
@@ -95,7 +115,7 @@ mod injectionlogics_tests {
     #[test]
     fn test_mutate_byte_many_mutate() {
         let mut input: u8 = 0b0000_0000;
-        let expected:u8= 0b0011_1011;
+        let expected: u8 = 0b0011_1011;
         mutate_byte(&mut input, false, 7);
         mutate_byte(&mut input, false, 6);
         mutate_byte(&mut input, true, 5);
@@ -105,5 +125,13 @@ mod injectionlogics_tests {
         mutate_byte(&mut input, true, 1);
         mutate_byte(&mut input, true, 0);
         assert_eq!(input, expected)
+    }
+
+    #[test]
+    fn test_get_bytes_from_bits_1() {
+        // 155 = 10011011
+        let input: [bool; 8] = [true, false, false, true, true, false, true, true];
+        let output = get_bytes_from_bits(input);
+        assert_eq!(output, 155)
     }
 }

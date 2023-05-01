@@ -7,6 +7,7 @@ use std::fs;
 use crate::{
     bitlogics::{get_bit_at, get_rgb_for_bit},
     injectionextraction::EOF_CHAR,
+    instructionlogics::Instruction,
     options::{AlgoFrame, InjectOptions},
     videoframe::VideoFrame,
 };
@@ -41,21 +42,34 @@ pub fn create_starting_frame(inject_options: &InjectOptions) -> VideoFrame {
     frame
 }
 
-pub fn data_to_frames(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
+pub fn data_to_frames(
+    inject_options: &InjectOptions,
+    data: Vec<u8>,
+    instruction: Instruction,
+) -> Vec<VideoFrame> {
     if inject_options.algo == AlgoFrame::RGB {
-        data_to_frames_method_rgb(inject_options, data)
+        data_to_frames_method_rgb(inject_options, data, instruction)
     } else {
-        data_to_frames_method_bw(inject_options, data)
+        data_to_frames_method_bw(inject_options, data, instruction)
     }
 }
 
 /// Move data into many frames of the video using RGB
 /// Each data (character) is going in to a R or G or B.
 /// It means that a pixel can hold 3 characters of a file.
-fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
+fn data_to_frames_method_rgb(
+    inject_options: &InjectOptions,
+    data: Vec<u8>,
+    instruction: Instruction,
+) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index = 0;
-    let total_bytes = data.len() as f64;
+
+    let mut instruction_and_data = instruction.to_vec();
+    instruction_and_data.extend(data.into_iter());
+
+    let total_data = instruction_and_data.len();
+    let total_bytes = total_data as f64;
     let total_expected_frame: u64 = (total_bytes
         / (f64::from(inject_options.width) * f64::from(inject_options.height)
             / f64::from(inject_options.size)
@@ -64,11 +78,12 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
     if inject_options.show_progress {
         println!(
             "Inserting {} bytes into {} frames",
-            total_bytes, total_expected_frame
+            pretty_bytes(total_bytes as u64, None),
+            total_expected_frame
         );
     }
 
-    while data_index < data.len() {
+    while data_index < total_data {
         // Step 1: Create a single frame
         let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
         for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
@@ -76,18 +91,18 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
                 // Step 2: For each pixel of the frame, extract a byte of the vector
                 // If there is not pixel, we keep filling with the EOF_CHAR to complete`
                 // the frame
-                let r = if data_index < data.len() {
-                    data[data_index]
+                let r = if data_index < total_data {
+                    instruction_and_data[data_index]
                 } else {
                     EOF_CHAR
                 };
-                let g = if data_index + 1 < data.len() {
-                    data[data_index + 1]
+                let g = if data_index + 1 < total_data {
+                    instruction_and_data[data_index + 1]
                 } else {
                     EOF_CHAR
                 };
-                let b = if data_index + 2 < data.len() {
-                    data[data_index + 2]
+                let b = if data_index + 2 < total_data {
+                    instruction_and_data[data_index + 2]
                 } else {
                     EOF_CHAR
                 };
@@ -110,10 +125,17 @@ fn data_to_frames_method_rgb(inject_options: &InjectOptions, data: Vec<u8>) -> V
 /// Move data into many frames of the video using bit and black and white
 /// Each data (character) is going to 8 pixels. Each pixel is black (0) or white (1)
 /// It means that a pixel alone represent 1/8 of a byte (a character).
-fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Vec<VideoFrame> {
+fn data_to_frames_method_bw(
+    inject_options: &InjectOptions,
+    data: Vec<u8>,
+    instruction: Instruction,
+) -> Vec<VideoFrame> {
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index: usize = 0;
     let mut bit_index: u8 = 7;
+
+    let mut instruction_and_data = instruction.to_vec();
+    instruction_and_data.extend(data.into_iter());
 
     let total_size = u32::from(inject_options.width) * u32::from(inject_options.height)
         / u32::from(inject_options.size);
@@ -121,7 +143,7 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
         panic!("The frame size must be at least big enough to accept a single character");
     }
 
-    let total_data = data.len();
+    let total_data = instruction_and_data.len();
     let total_bytes = total_data as f64;
     let total_expected_frame: u64 = (total_bytes * 8.0
         / (f64::from(inject_options.width) * f64::from(inject_options.height)
@@ -135,6 +157,7 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
             total_expected_frame
         );
     }
+
     while data_index < total_data {
         // Create a single frame
         let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
@@ -143,7 +166,7 @@ fn data_to_frames_method_bw(inject_options: &InjectOptions, data: Vec<u8>) -> Ve
                 // For each pixel of the frame, extract a bit of the active byte of the vector
                 if data_index < total_data {
                     // Still have a char, we get the bit we are at of that char
-                    let bit = get_bit_at(data[data_index], bit_index);
+                    let bit = get_bit_at(instruction_and_data[data_index], bit_index);
                     let (r, g, b) = get_rgb_for_bit(bit);
                     frame.write(r, g, b, x, y, inject_options.size);
                 } else {
@@ -241,11 +264,11 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
 mod injectionlogics_tests {
     use opencv::prelude::MatTraitConst;
 
-    use crate::injectionextraction::EOF_CHAR;
-
     use super::*;
+
     #[test]
     fn test_data_to_frames_short_message_bigger_frame_expect_1_frame() {
+        let instruction = Instruction::new(100);
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
@@ -260,12 +283,14 @@ mod injectionlogics_tests {
         let frames = data_to_frames_method_rgb(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
         );
         assert_eq!(frames.len(), 1)
     }
 
     #[test]
     fn test_data_to_frames_short_message_shorter_frame_expect_2_frame() {
+        let instruction = Instruction::new(100);
         // 2x2 = 4 with 3 colors = 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
             file_path: "".to_string(),
@@ -281,34 +306,44 @@ mod injectionlogics_tests {
         let frames = data_to_frames_method_rgb(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
         );
         assert_eq!(frames.len(), 2)
     }
 
     #[test]
-    fn test_data_to_frames_short_message_remaining_color_eof() {
+    fn test_data_to_frames_short_message_remaining_color_isntruction() {
+        let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
         // 2x2 = 4 with 3 colors = 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 2,
-            width: 2,
+            height: 4,
+            width: 4,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
         };
         // Text: This
-        let frames = data_to_frames_method_rgb(&options, vec![54, 68, 69, 73]);
+        let frames = data_to_frames_method_rgb(&options, vec![54, 68, 69, 73], instruction);
         let first_frame = &frames[0];
         let color1 = first_frame.read_coordinate_color(0, 0);
-        assert_eq!(color1.r, 54);
-        assert_eq!(color1.g, 68);
-        assert_eq!(color1.b, 69);
+        assert_eq!(color1.r, 48);
+        assert_eq!(color1.g, 23);
+        assert_eq!(color1.b, 97);
         let color2 = first_frame.read_coordinate_color(1, 0);
-        assert_eq!(color2.r, 73);
-        assert_eq!(color2.g, EOF_CHAR);
-        assert_eq!(color2.b, EOF_CHAR);
+        assert_eq!(color2.r, 63);
+        assert_eq!(color2.g, 120);
+        assert_eq!(color2.b, 220);
+        let color1 = first_frame.read_coordinate_color(2, 0);
+        assert_eq!(color1.r, 191);
+        assert_eq!(color1.g, 162);
+        assert_eq!(color1.b, 54);
+        let color2 = first_frame.read_coordinate_color(3, 0);
+        assert_eq!(color2.r, 68);
+        assert_eq!(color2.g, 69);
+        assert_eq!(color2.b, 73);
     }
 
     #[test]
@@ -338,6 +373,7 @@ mod injectionlogics_tests {
 
     #[test]
     fn test_data_to_frames_method_blackwhite() {
+        let instruction = Instruction::new(100);
         // 2x2 = 4 bits per frame. With 14 chars we have 14x8bits = 112bits. 112/16 = 7 frames
         let options = InjectOptions {
             file_path: "".to_string(),
@@ -353,19 +389,21 @@ mod injectionlogics_tests {
         let frames = data_to_frames_method_bw(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
         );
-        assert_eq!(frames.len(), 7)
+        assert_eq!(frames.len(), 7 + 4) // 4 additional because of instructions
     }
 
     #[test]
     fn test_data_to_frames_method_blackwhite_remaining_color_eof() {
-        // 2x2 = 4 bits per frame. With 4 chars we have 4 = 32bits. 32/4 = 8 frames
+        let instruction = Instruction::new(3465345363523452834); // 0011000000010111011000010011111101111000110111001011111110100010
+                                                                 // 2x2 = 4 bits per frame. With 4 chars we have 4 = 32bits. 32/4 = 8 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 32,
-            width: 32, // Fits the 4 characters on 1 line
+            height: 64,
+            width: 64, // First line will be full instruction (64 bits)
             size: 1,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
@@ -373,73 +411,96 @@ mod injectionlogics_tests {
         // Text: This
         // 84 104 105 115
         // 01010100 01101000 01101001 01110011
-        let frames = data_to_frames_method_bw(&options, vec![84, 104, 105, 115]);
+        let frames = data_to_frames_method_bw(&options, vec![84, 104, 105, 115], instruction);
 
         // Assert what we wrote
         let first_frame = &frames[0];
-        // First Char
+        // First random instruction checks
         let mut color = first_frame.read_coordinate_color(0, 0);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
         color = first_frame.read_coordinate_color(1, 0);
-        assert_eq!(color.r, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.b, 255);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
         color = first_frame.read_coordinate_color(2, 0);
-        assert_eq!(color.r, 0);
-        assert_eq!(color.g, 0);
-        assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(3, 0);
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 255);
         assert_eq!(color.b, 255);
-        color = first_frame.read_coordinate_color(4, 0);
-        assert_eq!(color.r, 0);
-        assert_eq!(color.g, 0);
-        assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(5, 0);
+
+        color = first_frame.read_coordinate_color(62, 0);
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 255);
         assert_eq!(color.b, 255);
-        color = first_frame.read_coordinate_color(6, 0);
+        color = first_frame.read_coordinate_color(63, 0);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(7, 0);
+
+        // First Char (after instruction)
+        let mut color = first_frame.read_coordinate_color(0, 1);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(1, 1);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(2, 1);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(3, 1);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(4, 1);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(5, 1);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+        color = first_frame.read_coordinate_color(6, 1);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+        color = first_frame.read_coordinate_color(7, 1);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
         // Second Char
-        let mut color = first_frame.read_coordinate_color(8, 0);
+        let mut color = first_frame.read_coordinate_color(8, 1);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(9, 0);
+        color = first_frame.read_coordinate_color(9, 1);
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 255);
         assert_eq!(color.b, 255);
-        color = first_frame.read_coordinate_color(10, 0);
+        color = first_frame.read_coordinate_color(10, 1);
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 255);
         assert_eq!(color.b, 255);
-        color = first_frame.read_coordinate_color(11, 0);
+        color = first_frame.read_coordinate_color(11, 1);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(12, 0);
+        color = first_frame.read_coordinate_color(12, 1);
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 255);
         assert_eq!(color.b, 255);
-        color = first_frame.read_coordinate_color(13, 0);
+        color = first_frame.read_coordinate_color(13, 1);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(14, 0);
+        color = first_frame.read_coordinate_color(14, 1);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
-        color = first_frame.read_coordinate_color(15, 0);
+        color = first_frame.read_coordinate_color(15, 1);
         assert_eq!(color.r, 0);
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);

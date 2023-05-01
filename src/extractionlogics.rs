@@ -12,7 +12,7 @@ use opencv::prelude::VideoCaptureTrait;
 use opencv::videoio::CAP_ANY;
 
 use crate::{injectionextraction::EOF_CHAR, options::ExtractOptions};
-
+use indicatif::ProgressBar;
 struct FrameBytesInfo {
     pub bytes: Vec<u8>,
     pub is_red_frame: bool,
@@ -53,21 +53,24 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
     let actual_size = map_to_size(extract_options.width, extract_options.height);
     let mut is_red_frame_found = false;
     let mut relevant_frame_count = 0;
-    let mut counter = 0;
     let mut previous_frame_checksum = 0;
 
-    println!("Initial Frames count: {}", frames.len());
+    let total_expected_frame = frames.len() as u64;
+    println!("Initial Frames count: {}", total_expected_frame);
+    let pb = ProgressBar::new(total_expected_frame);
+
     for frame in frames.iter() {
         let frame_data = if extract_options.algo == AlgoFrame::RGB {
             frame_to_data_method_rgb(frame, actual_size, extract_options.size)
         } else {
             frame_to_data_method_bw(frame, actual_size, extract_options.size)
         };
-        counter += 1;
         if is_red_frame_found && !frame_data.is_red_frame {
             let current_frame_checksum = crc32fast::hash(frame_data.bytes.as_slice());
             if current_frame_checksum != previous_frame_checksum {
-                println!("Real Frame: #{}", counter);
+                if extract_options.show_progress {
+                    pb.inc(1);
+                }
                 byte_data.extend(frame_data.bytes); // Between two red frames, we accumulate
                 relevant_frame_count += 1;
                 previous_frame_checksum = current_frame_checksum;
@@ -80,7 +83,14 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             is_red_frame_found = true; // From that point, we start accumulating byte
         }
     }
-    println!("Relevant Frames count: {}", relevant_frame_count);
+    let p = relevant_frame_count / total_expected_frame;
+    if extract_options.show_progress {
+        pb.finish_with_message("done");
+    }
+    println!(
+        "Relevant Frames count: {}/{} ({:.3})",
+        relevant_frame_count, total_expected_frame, p
+    );
     byte_data
 }
 
@@ -158,7 +168,7 @@ fn frame_to_data_method_bw(
                     result.bytes.push(data);
                     data = 0;
                 } else {
-                    return result; // The frame has reach a point that it has no more relevant information
+                    return result; // The frame has reached a point that it has no more relevant information
                 }
             }
         }
@@ -182,10 +192,6 @@ pub fn check_red_frame(list_rgbs: Vec<Vec<u8>>) -> bool {
     let size_list = list_rgbs.len() as f64;
     let percentage = counter as f64 / size_list as f64;
     let is_red = percentage > 0.9;
-    println!(
-        "{}/{} = {} frame red. Is red? {}",
-        counter, size_list, percentage, is_red
-    );
     return is_red;
 }
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
