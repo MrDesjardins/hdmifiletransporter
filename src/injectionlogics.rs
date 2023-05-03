@@ -6,7 +6,7 @@ use std::fs;
 
 use crate::{
     bitlogics::{get_bit_at, get_rgb_for_bit},
-    injectionextraction::EOF_CHAR,
+    injectionextraction::NULL_CHAR,
     instructionlogics::Instruction,
     options::{AlgoFrame, InjectOptions},
     videoframe::VideoFrame,
@@ -89,22 +89,22 @@ fn data_to_frames_method_rgb(
         for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
             for x in (0..inject_options.width).step_by(usize::from(inject_options.size)) {
                 // Step 2: For each pixel of the frame, extract a byte of the vector
-                // If there is not pixel, we keep filling with the EOF_CHAR to complete`
+                // If there is not pixel, we keep filling with the NULL_CHAR to complete`
                 // the frame
                 let r = if data_index < total_data {
                     instruction_and_data[data_index]
                 } else {
-                    EOF_CHAR
+                    NULL_CHAR
                 };
                 let g = if data_index + 1 < total_data {
                     instruction_and_data[data_index + 1]
                 } else {
-                    EOF_CHAR
+                    NULL_CHAR
                 };
                 let b = if data_index + 2 < total_data {
                     instruction_and_data[data_index + 2]
                 } else {
-                    EOF_CHAR
+                    NULL_CHAR
                 };
                 // Step 3: Apply the pixel to the frame
                 frame.write(r, g, b, x, y, inject_options.size);
@@ -170,8 +170,8 @@ fn data_to_frames_method_bw(
                     let (r, g, b) = get_rgb_for_bit(bit);
                     frame.write(r, g, b, x, y, inject_options.size);
                 } else {
-                    // If there is no char, we keep filling with the EOF_CHAR char to complete frame
-                    let bit = get_bit_at(EOF_CHAR, bit_index);
+                    // If there is no char, we keep filling with the NULL_CHAR char to complete frame
+                    let bit = get_bit_at(NULL_CHAR, bit_index);
                     let (r, g, b) = get_rgb_for_bit(bit);
                     frame.write(r, g, b, x, y, inject_options.size);
                 }

@@ -1,7 +1,9 @@
 use opencv::core::prelude::*;
 use opencv::core::{Mat, Size, CV_8UC3};
 
+use crate::bitlogics::get_rgb_for_bit;
 use crate::injectionextraction::Color;
+use crate::instructionlogics::Instruction;
 
 /// Define a single frame that the video will play
 /// E.g. on a 30fps video, there will be 30 VideoFrame every second
@@ -75,10 +77,41 @@ impl VideoFrame {
             b: bgr[0],
         }
     }
+
+    /// Write at the beginning of the frame the instruction using the reserved space
+    pub fn write_instruction(&mut self, instruction: &Instruction) {
+        let mut instruction_index = 0;
+        for i in 0..self.frame_size.height {
+            for j in 0..self.frame_size.width {
+                if instruction_index < 64 {
+                    let result = self
+                        .image
+                        .at_2d_mut::<opencv::core::Vec3b>(i32::from(i), i32::from(j));
+                    let (r, g, b) = get_rgb_for_bit(
+                        instruction.relevant_byte_count_in_64bits[instruction_index],
+                    );
+                    match result {
+                        Ok(bgr) => {
+                            // Opencv works with bgr format instead of rgb
+                            bgr[2] = r;
+                            bgr[1] = g;
+                            bgr[0] = b;
+                        }
+                        Err(e) => {
+                            panic!("i:{}, j:{}, Error Message:{:?}", i, j, e)
+                        }
+                    }
+                }
+                instruction_index += 1;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod videoframe_tests {
+    use crate::instructionlogics::Instruction;
+
     use super::VideoFrame;
     use opencv::core::prelude::*;
     use opencv::core::{Mat, CV_8UC3};
@@ -118,16 +151,6 @@ mod videoframe_tests {
         assert_eq!(color.r, 10);
     }
 
-    // #[test]
-    // fn test_from_save_mat() {
-    //     let mat = Mat::default();
-    //     let ref1 =  &mat as *const Mat;
-    //     let videoframe = VideoFrame::from(mat, 1);
-    //     let unwrapped = videoframe.unwrap();
-    //     assert!(&unwrapped.image as *const Mat == ref1);
-
-    // }
-
     #[test]
     fn test_from_define_size() {
         unsafe {
@@ -137,5 +160,27 @@ mod videoframe_tests {
             assert_eq!(unwrapped.frame_size.width, 200);
             assert_eq!(unwrapped.frame_size.height, 100);
         }
+    }
+
+    #[test]
+    fn test_write_image_instruction() {
+        let mut videoframe = VideoFrame::new(100, 100);
+        let mut instruction = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        instruction.relevant_byte_count_in_64bits[63] = true;
+
+        videoframe.write_instruction(&instruction);
+        let mut color: crate::injectionextraction::Color;
+        for i in 0..3 {
+            color = videoframe.read_coordinate_color(i, 0);
+            assert_eq!(color.b, 0);
+            assert_eq!(color.g, 0);
+            assert_eq!(color.r, 0);
+        }
+        color = videoframe.read_coordinate_color(63, 0); // The last bit of instruction is true
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
     }
 }

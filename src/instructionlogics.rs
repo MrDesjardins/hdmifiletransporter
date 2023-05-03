@@ -10,7 +10,10 @@ use crate::bitlogics::{get_bit_at64, get_bytes_from_bits};
 ///
 /// The produced data might contain more byte to fill up a frame.
 ///
+#[derive(Debug, Clone, Copy)]
 pub struct Instruction {
+    /// 0 => most left
+    /// 63 => most right
     pub relevant_byte_count_in_64bits: [bool; 64],
 }
 impl Instruction {
@@ -58,12 +61,40 @@ impl Instruction {
 
         result
     }
+
+    /// Get the size back in a number format
+    pub fn get_data_size(&self) -> u64 {
+        let mut result: u64 = 0;
+        for i in 0..64 {
+            let position = 64 - i - 1;
+            let bi = if self.relevant_byte_count_in_64bits[position] {
+                1
+            } else {
+                0
+            };
+            result = result & !(1 << i) | (bi << i);
+        }
+        result
+    }
 }
 
 #[cfg(test)]
 mod injectionlogics_tests {
     use super::*;
 
+    #[test]
+    fn test_instruction_new_ver_small() {
+        let instruction = Instruction::new(1); // 00000000000000000000000000000000000000000000000000000000...1100100
+
+        assert_eq!(instruction.relevant_byte_count_in_64bits[63], true);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[62], false);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[61], false);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[60], false);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[59], false);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[58], false);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[57], false);
+        assert_eq!(instruction.relevant_byte_count_in_64bits[0], false);
+    }
     #[test]
     fn test_instruction_new_small() {
         let instruction = Instruction::new(100); // 00000000000000000000000000000000000000000000000000000000...1100100
@@ -105,15 +136,15 @@ mod injectionlogics_tests {
 
     #[test]
     fn test_instruction_get_bytes() {
-        let instruction = Instruction::new(389657); // 00000000000000000000000000000000000000000000000000000000...1011111001000011001
+        let instruction = Instruction::new(389657); // 00000000000000000000000000000000000000000000000000000000...101 11110010 00011001
         let byte_0 = instruction.get_bytes(0); // 00000000
         let byte_1 = instruction.get_bytes(1); // 00000000
         let byte_2 = instruction.get_bytes(2); // 00000000
         let byte_3 = instruction.get_bytes(3); // 00000000
         let byte_4 = instruction.get_bytes(4); // 00000000
-        let byte_5 = instruction.get_bytes(5); // 00000101
-        let byte_6 = instruction.get_bytes(6); // 11110010
-        let byte_7 = instruction.get_bytes(7); // 00011001
+        let byte_5 = instruction.get_bytes(5); // 00000101 -> 5
+        let byte_6 = instruction.get_bytes(6); // 11110010 -> 242
+        let byte_7 = instruction.get_bytes(7); // 00011001 -> 25
         assert_eq!(byte_0, 25);
         assert_eq!(byte_1, 242);
         assert_eq!(byte_2, 5);
@@ -126,6 +157,8 @@ mod injectionlogics_tests {
 
     #[test]
     fn test_instruction_to_vec() {
+        // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+        // 48 23 97 63 120 220 191 162
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
         let result = instruction.to_vec();
         assert_eq!(result[0], 48);
@@ -136,5 +169,19 @@ mod injectionlogics_tests {
         assert_eq!(result[5], 220);
         assert_eq!(result[6], 191);
         assert_eq!(result[7], 162);
+    }
+
+    #[test]
+    fn test_instruction_get_data_size_small() {
+        let instruction = Instruction::new(75); // 000000 ... 1001011
+        let result = instruction.get_data_size();
+        assert_eq!(result, 75)
+    }
+
+    #[test]
+    fn test_instruction_get_data_size() {
+        let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+        let result = instruction.get_data_size();
+        assert_eq!(result, 3465345363523452834)
     }
 }

@@ -1,5 +1,4 @@
-// const NUMBER_BIT_PER_BYTE: u8 = 8;
-pub const EOF_CHAR: u8 = 4u8;
+pub const NULL_CHAR: u8 = 0u8;
 
 use opencv::core::Size;
 
