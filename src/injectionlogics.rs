@@ -134,6 +134,10 @@ fn data_to_frames_method_bw(
     let mut data_index: usize = 0;
     let mut bit_index: u8 = 7;
 
+    if u32::from(inject_options.width) * u32::from(inject_options.height) < 64 {
+        panic!("Instruction must fit in the first frame");
+    }
+
     let total_size = u32::from(inject_options.width) * u32::from(inject_options.height)
         / u32::from(inject_options.size);
     if total_size < 8 {
@@ -169,6 +173,7 @@ fn data_to_frames_method_bw(
             x = current_pos.0;
             y = current_pos.1;
             need_to_write_instruction = false;
+            println!("Wrote instruction");
         }
         while y < inject_options.height {
             while x < inject_options.width {
@@ -177,6 +182,7 @@ fn data_to_frames_method_bw(
                     // Still have a char, we get the bit we are at of that char
                     let bit = get_bit_at(data[data_index], bit_index);
                     let (r, g, b) = get_rgb_for_bit(bit);
+                    println!("[{},{}], RGB {}/{}/{}", x, y, r, g, b);
                     frame.write(r, g, b, x, y, inject_options.size);
                 } else {
                     // If there is no char, we keep filling with the NULL_CHAR char to complete frame
@@ -195,7 +201,8 @@ fn data_to_frames_method_bw(
                 }
                 x += inject_options.size as u16;
             }
-            y += inject_options.size  as u16;
+            y += inject_options.size as u16;
+            x = 0;
         }
         if inject_options.show_progress {
             pb.inc(1);
@@ -385,28 +392,27 @@ mod injectionlogics_tests {
     #[test]
     fn test_data_to_frames_method_blackwhite() {
         let instruction = Instruction::new(100);
-        // 2x2 = 4 bits per frame. With 14 chars we have 14x8bits = 112bits. 112/16 = 7 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 4,
-            width: 4,
+            height: 8,
+            width: 8,
             size: 1,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
         };
-        // Text: This is a test, 14 chars = 14 bytes = 112 pixel
+        // Text: This is a test, 14 chars = 14 bytes = 14*8bit =112 pixel
         // Instruction is 64 bits = 64 pixel
         // Total pixel: 176
-        // 1 frame is 4x4 pixel = 16
-        // 176/16 = 11 frames
+        // 1 frame is 8x48 pixel = 64
+        // 176/64 = 3 frames
         let frames = data_to_frames_method_bw(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
             instruction,
         );
-        assert_eq!(frames.len(), 7 + 4) // 4 additional because of instructions
+        assert_eq!(frames.len(), 3);
     }
 
     #[test]
