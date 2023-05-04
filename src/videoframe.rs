@@ -79,32 +79,24 @@ impl VideoFrame {
     }
 
     /// Write at the beginning of the frame the instruction using the reserved space
-    pub fn write_instruction(&mut self, instruction: &Instruction) {
+    pub fn write_instruction(&mut self, instruction: &Instruction, size: u8) -> (u16, u16) {
         let mut instruction_index = 0;
-        for i in 0..self.frame_size.height {
-            for j in 0..self.frame_size.width {
+        let mut x: u16 = 0;
+        let mut y: u16 = 0;
+        for i in 0..self.frame_size.height as u16 {
+            for j in 0..self.frame_size.width as u16 {
                 if instruction_index < 64 {
-                    let result = self
-                        .image
-                        .at_2d_mut::<opencv::core::Vec3b>(i32::from(i), i32::from(j));
                     let (r, g, b) = get_rgb_for_bit(
                         instruction.relevant_byte_count_in_64bits[instruction_index],
                     );
-                    match result {
-                        Ok(bgr) => {
-                            // Opencv works with bgr format instead of rgb
-                            bgr[2] = r;
-                            bgr[1] = g;
-                            bgr[0] = b;
-                        }
-                        Err(e) => {
-                            panic!("i:{}, j:{}, Error Message:{:?}", i, j, e)
-                        }
-                    }
+                    self.write(r, g, b, j, i, size);
+                    x = j + size as u16;
+                    y = i + size as u16;
                 }
                 instruction_index += 1;
             }
         }
+        return (x, y);
     }
 }
 
@@ -170,7 +162,7 @@ mod videoframe_tests {
         };
         instruction.relevant_byte_count_in_64bits[63] = true;
 
-        videoframe.write_instruction(&instruction);
+        videoframe.write_instruction(&instruction, 1);
         let mut color: crate::injectionextraction::Color;
         for i in 0..3 {
             color = videoframe.read_coordinate_color(i, 0);

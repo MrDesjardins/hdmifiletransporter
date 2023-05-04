@@ -1,4 +1,4 @@
-use crate::bitlogics::{get_bit_at64, get_bytes_from_bits};
+use crate::bitlogics::{get_bit_at64, get_byte_from_bits};
 
 ///
 /// Information to pass from the injection to the extraction.
@@ -12,8 +12,8 @@ use crate::bitlogics::{get_bit_at64, get_bytes_from_bits};
 ///
 #[derive(Debug, Clone, Copy)]
 pub struct Instruction {
-    /// 0 => most left
-    /// 63 => most right
+    /// 0 => most left visually
+    /// 63 => most right visually
     pub relevant_byte_count_in_64bits: [bool; 64],
 }
 impl Instruction {
@@ -30,33 +30,28 @@ impl Instruction {
     }
 
     /// From the bits saved, gets the bytes from position
-    /// Position 0 = Most right side, Position 7 = Most left side
-    pub fn get_bytes(&self, position: u8) -> u8 {
-        if position >= 8 {
+    /// Position 0 = Most left side visually, Position 7 = Most right side visually
+    pub fn get_byte(&self, visual_position_from_left: u8) -> u8 {
+        if visual_position_from_left >= 8 {
             panic!("Only position of 0 to 7 inclusively exist in a 64 bits");
         }
-        // Position 7: [0,7]
-        // Position 6: [8, 15]
-        // Position 5: [16, 23]
-        // Position 4: [24, 31]
-        // Position 3: [32, 39]
-        // Position 2: [40, 47]
-        // Position 1: [48, 55]
-        // Position 0: [56, 63]
+        // Array
+        // Position: [0, 1, 2, 3, 4, 5, 6, 7]
+        // Bits array: [0....63]
         let mut slice: [bool; 8] = [false; 8];
-        let start_position = 64 - (position + 1) * 8;
+        let start_position = visual_position_from_left * 8;
         let slice_values = &self.relevant_byte_count_in_64bits
             [start_position as usize..start_position as usize + 8];
         slice.copy_from_slice(slice_values);
-        get_bytes_from_bits(slice)
+        get_byte_from_bits(slice)
     }
 
-    /// Vector of byte
-    /// Position 0 = Most right side, Position 7 = Most left side
-    pub fn to_vec(&self) -> Vec<u8> {
-        let mut result: Vec<u8> = Vec::new();
+    /// Array of bytes
+    /// Position 0 = Most left side visually, Position 7 = Most right side visually
+    pub fn get_bytes(&self) -> [u8; 8] {
+        let mut result: [u8; 8] = [0; 8];
         for i in 0..8 {
-            result.push(self.get_bytes(8 - i - 1));
+            result[i] = self.get_byte(i as u8);
         }
 
         result
@@ -135,32 +130,34 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_instruction_get_bytes() {
-        let instruction = Instruction::new(389657); // 00000000000000000000000000000000000000000000000000000000...101 11110010 00011001
-        let byte_0 = instruction.get_bytes(0); // 00000000
-        let byte_1 = instruction.get_bytes(1); // 00000000
-        let byte_2 = instruction.get_bytes(2); // 00000000
-        let byte_3 = instruction.get_bytes(3); // 00000000
-        let byte_4 = instruction.get_bytes(4); // 00000000
-        let byte_5 = instruction.get_bytes(5); // 00000101 -> 5
-        let byte_6 = instruction.get_bytes(6); // 11110010 -> 242
-        let byte_7 = instruction.get_bytes(7); // 00011001 -> 25
-        assert_eq!(byte_0, 25);
-        assert_eq!(byte_1, 242);
-        assert_eq!(byte_2, 5);
-        assert_eq!(byte_3, 0);
-        assert_eq!(byte_4, 0);
-        assert_eq!(byte_5, 0);
-        assert_eq!(byte_6, 0);
-        assert_eq!(byte_7, 0);
-    }
-
-    #[test]
-    fn test_instruction_to_vec() {
+    fn test_instruction_get_byte() {
         // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
         // 48 23 97 63 120 220 191 162
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
-        let result = instruction.to_vec();
+        let byte_0 = instruction.get_byte(0); // 00110000 -> 48
+        let byte_1 = instruction.get_byte(1); // 00010111 -> 23
+        let byte_2 = instruction.get_byte(2); // 01100001 -> 97
+        let byte_3 = instruction.get_byte(3); // 00111111 -> 63
+        let byte_4 = instruction.get_byte(4); // 01111000 -> 120
+        let byte_5 = instruction.get_byte(5); // 01111000 -> 220
+        let byte_6 = instruction.get_byte(6); // 10111111 -> 191
+        let byte_7 = instruction.get_byte(7); // 10100010 -> 162
+        assert_eq!(byte_0, 48);
+        assert_eq!(byte_1, 23);
+        assert_eq!(byte_2, 97);
+        assert_eq!(byte_3, 63);
+        assert_eq!(byte_4, 120);
+        assert_eq!(byte_5, 220);
+        assert_eq!(byte_6, 191);
+        assert_eq!(byte_7, 162);
+    }
+
+    #[test]
+    fn test_instruction_get_bytes() {
+        // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+        // 48 23 97 63 120 220 191 162
+        let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+        let result = instruction.get_bytes();
         assert_eq!(result[0], 48);
         assert_eq!(result[1], 23);
         assert_eq!(result[2], 97);

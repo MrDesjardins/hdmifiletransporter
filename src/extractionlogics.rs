@@ -12,7 +12,7 @@ use opencv::prelude::MatTraitConst;
 use opencv::prelude::VideoCaptureTrait;
 use opencv::videoio::CAP_ANY;
 
-use crate::{injectionextraction::NULL_CHAR, options::ExtractOptions};
+use crate::options::ExtractOptions;
 use indicatif::ProgressBar;
 struct FrameBytesInfo {
     pub bytes: Vec<u8>,
@@ -147,37 +147,49 @@ fn frame_to_data_method_rgb(
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
-            rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always 3, with or without instruction
+            rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always 3, with or without instruction because each pixel is 3 colors (R/G/B)
+            let mut rgb_index = 0; // In case we use only a potion of the three pixels in the instruction, we need to know which to use for data
             if instruction_bits_index < 64 {
                 for i in 0..3 {
-                    for j in 0..3 {
-                        // 3 pixels with 3 colors (R/G/B)
+                    // Loop 3 pixels with 3 colors (R/G/B)
+                    for bit_i in 0..8 {
+                        // 8 bits each color
                         if instruction_bits_index < 64 {
-                            let color_bits = rgbs[i][j];
+                            let bit_value_from_rgb_color = get_bit_at(rgb[i], 7 - bit_i);
                             // Will get here only on the first frame and until we have the whole instruction message (64 bits)
                             instruction_data.relevant_byte_count_in_64bits
-                                [64 - instruction_bits_index - 1] =
-                                get_bit_at(color_bits, (i / 8) as u8);
+                                [64 - instruction_bits_index - 1] = bit_value_from_rgb_color;
                             instruction_bits_index += 1;
                         }
                         if !has_already_instruction_from_past && instruction_bits_index == 63 {
                             *instruction = Some(instruction_data); // Send it back for subsequence frames to use
                         }
                     }
+                    rgb_index = i;
                 }
             }
-            let max = instruction_data.get_data_size();
-            result.bytes.push(rgb[0]);
-            if bytes_processes_count + result.bytes.len() as u64 == max {
-                return result; // The frame has reached a point that it has no more relevant information
-            }
-            result.bytes.push(rgb[1]);
-            if bytes_processes_count + result.bytes.len() as u64 == max {
-                return result; // The frame has reached a point that it has no more relevant information
-            }
-            result.bytes.push(rgb[2]);
-            if bytes_processes_count + result.bytes.len() as u64 == max {
-                return result; // The frame has reached a point that it has no more relevant information
+            if instruction_bits_index >= 64 || has_already_instruction_from_past {
+                let max = instruction_data.get_data_size();
+                if rgb_index == 0 {
+                    result.bytes.push(rgb[0]);
+                    if bytes_processes_count + result.bytes.len() as u64 <= max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
+                }
+
+                if rgb_index <= 1 {
+                    result.bytes.push(rgb[1]);
+                    if bytes_processes_count + result.bytes.len() as u64 <= max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
+                }
+
+                if rgb_index <= 2 {
+                    result.bytes.push(rgb[2]);
+                    if bytes_processes_count + result.bytes.len() as u64 <= max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
+                }
             }
         }
     }
@@ -311,25 +323,36 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_rgb() {
-        let size = map_to_size(64, 64);
-        let mut frame = VideoFrame::new(64, 64);
+        let size = map_to_size(12, 12); // 8 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantx pixel on the first row
+        let mut frame = VideoFrame::new(12, 12);
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
         };
-        instr.relevant_byte_count_in_64bits[63] = true;
-        frame.write_instruction(&instr);
-        frame.write(10, 20, 30, 0, 1, 1);
-        frame.write(40, 50, 60, 1, 1, 1);
+        // 6 relevant bytes
+        instr.relevant_byte_count_in_64bits[61] = true;
+        instr.relevant_byte_count_in_64bits[62] = true;
+        instr.relevant_byte_count_in_64bits[63] = false;
+        frame.write_instruction(&instr, 1);
+
+        // Write 9 bytes
+        frame.write(10, 20, 30, 8, 1, 1);
+        frame.write(40, 50, 60, 9, 1, 1);
+        frame.write(70, 80, 90, 10, 1, 1); // Irrelevant, because instruction specify 6 not 9
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0);
+        assert_eq!(result.bytes.len(), 6);
         assert_eq!(result.bytes[0], 10);
         assert_eq!(result.bytes[1], 20);
         assert_eq!(result.bytes[2], 30);
         assert_eq!(result.bytes[3], 40);
         assert_eq!(result.bytes[4], 50);
         assert_eq!(result.bytes[5], 60);
+        // -> Below does not exist since in the instruction we marked to have only 6 relevants!
+        // assert_eq!(result.bytes[6], 70);
+        // assert_eq!(result.bytes[7], 80);
+        // assert_eq!(result.bytes[8], 90);
         assert_eq!(result.is_red_frame, false);
     }
 
@@ -343,7 +366,7 @@ mod extractionlogics_tests {
             relevant_byte_count_in_64bits: [false; 64],
         };
         instr.relevant_byte_count_in_64bits[63] = true;
-        frame.write_instruction(&instr);
+        frame.write_instruction(&instr, 1);
 
         // Write on the second row (first was instruction)
         frame.write(0, 0, 0, 0, 1, 1); // White 0 bit
@@ -371,7 +394,7 @@ mod extractionlogics_tests {
             relevant_byte_count_in_64bits: [false; 64],
         };
         instr.relevant_byte_count_in_64bits[63] = true; // 1 byte
-        frame.write_instruction(&instr);
+        frame.write_instruction(&instr, 1);
 
         // Write on the second row (first was instruction)
         frame.write(0, 0, 0, 0, 1, 1); // White 0 bit
@@ -387,6 +410,69 @@ mod extractionlogics_tests {
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0);
         assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
+        assert_eq!(result.is_red_frame, false);
+    }
+
+    #[test]
+    fn test_frame_to_data_method_bw_with_processesbytes() {
+        let size = map_to_size(64, 64);
+        let mut frame = VideoFrame::new(64, 64);
+
+        let mut instr = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        // Change to 0000011 = 3 to have 3 bytes
+        instr.relevant_byte_count_in_64bits[62] = true;
+        instr.relevant_byte_count_in_64bits[63] = true;
+        frame.write_instruction(&instr, 1);
+
+        // Write on the second row (first was instruction since 64 bits)
+        // First relevant byte (value 59)
+        frame.write(0, 0, 0, 0, 1, 1); // White 0 bit
+        frame.write(0, 0, 0, 1, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, 2, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 3, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 4, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 5, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, 6, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 7, 1, 1); // Black 1 bit
+
+        // Second relevant byte (value 251)
+        frame.write(255, 255, 255, 8, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 9, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 10, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 11, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 12, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 5, 13, 1); // White 0 bit
+        frame.write(255, 255, 255, 14, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 15, 1, 1); // Black 1 bit
+
+        // Third irrelevant byte (value 153)
+        frame.write(255, 255, 255, 16, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 17, 1, 1); // White 0 bit
+        frame.write(0, 0, 0, 18, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, 19, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 20, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 21, 1, 1); // White 0 bit
+        frame.write(0, 0, 0, 22, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, 23, 1, 1); // Black 1 bit
+
+        // Forth irrelevant byte (value 153)
+        frame.write(255, 255, 255, 24, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 25, 1, 1); // White 0 bit
+        frame.write(0, 0, 0, 26, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, 27, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 28, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 29, 1, 1); // White 0 bit
+        frame.write(0, 0, 0, 30, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, 31, 1, 1); // Black 1 bit
+
+        // Act
+        let mut instruction_from_frame: Option<Instruction> = None;
+        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 1);
+        assert_eq!(result.bytes.len(), 2); // The frame should have only the relevant byte #1 and #2
+        assert_eq!(result.bytes[0], 59);
+        assert_eq!(result.bytes[1], 251);
         assert_eq!(result.is_red_frame, false);
     }
 

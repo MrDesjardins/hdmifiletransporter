@@ -30,7 +30,7 @@ pub fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
 /// Choose the value depending if closer of 0 or 255 in average
 pub fn get_bit_from_rgb(rgb: Vec<u8>) -> bool {
     let sum: u32 = rgb.iter().map(|x| *x as u32).sum();
-    sum >= (255_u32 * 3 / 2)
+    sum >= (255_u32 * (rgb.len() as u32) / 2)
 }
 
 /// Change a bit from an existing byte
@@ -41,7 +41,7 @@ pub fn mutate_byte(byte_val: &mut u8, bit_val: bool, position: u8) {
 }
 
 /// Get a byte from a list of bit
-pub fn get_bytes_from_bits(bits: [bool; 8]) -> u8 {
+pub fn get_byte_from_bits(bits: [bool; 8]) -> u8 {
     let mut result: u8 = 0;
     for i in 0..8 {
         let position = 8 - i - 1 as u8;
@@ -93,6 +93,11 @@ mod injectionlogics_tests {
         let bit = get_bit_from_rgb(vec![255, 255, 255]);
         assert_eq!(bit, true);
     }
+    #[test]
+    fn test_get_bit_from_rgb_more_than_three() {
+        let bit = get_bit_from_rgb(vec![255, 255, 255, 0, 0, 0, 0, 0]);
+        assert_eq!(bit, false);
+    }
 
     #[test]
     fn test_mutate_byte_0_bit_true() {
@@ -131,7 +136,7 @@ mod injectionlogics_tests {
     fn test_get_bytes_from_bits_1() {
         // 155 = 10011011
         let input: [bool; 8] = [true, false, false, true, true, false, true, true];
-        let output = get_bytes_from_bits(input);
+        let output = get_byte_from_bits(input);
         assert_eq!(output, 155)
     }
 }
