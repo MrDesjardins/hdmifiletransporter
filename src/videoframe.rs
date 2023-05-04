@@ -79,6 +79,7 @@ impl VideoFrame {
     }
 
     /// Write at the beginning of the frame the instruction using the reserved space
+    /// 1 pixel per bit regardless if BW or RGB mode.
     pub fn write_instruction(&mut self, instruction: &Instruction, size: u8) -> (u16, u16) {
         let mut instruction_index = 0;
         let mut x: u16 = 0;

@@ -65,11 +65,15 @@ fn data_to_frames_method_rgb(
     let mut frames: Vec<VideoFrame> = Vec::new();
     let mut data_index = 0;
 
-    let mut instruction_and_data = instruction.get_bytes().to_vec();
-    instruction_and_data.extend(data.into_iter());
+    if u32::from(inject_options.width) * u32::from(inject_options.height) < 64 {
+        panic!(
+            "Instruction must fit in the first frame. Frame size: {}",
+            u32::from(inject_options.width) * u32::from(inject_options.height)
+        );
+    }
 
-    let total_data = instruction_and_data.len();
-    let total_bytes = total_data as f64;
+    let total_data = data.len();
+    let total_bytes = total_data as f64 + 64_f64; // Instruction
     let total_expected_frame: u64 = (total_bytes
         / (f64::from(inject_options.width) * f64::from(inject_options.height)
             / f64::from(inject_options.size)
@@ -83,39 +87,55 @@ fn data_to_frames_method_rgb(
         );
     }
 
+    let mut need_to_write_instruction = true;
     while data_index < total_data {
-        // Step 1: Create a single frame
+        let mut x: u16 = 0;
+        let mut y: u16 = 0;
+
+        // Create a single frame
         let mut frame = VideoFrame::new(inject_options.width, inject_options.height);
-        for y in (0..inject_options.height).step_by(usize::from(inject_options.size)) {
-            for x in (0..inject_options.width).step_by(usize::from(inject_options.size)) {
+
+        // Write instruction only once, on the first frame
+        if need_to_write_instruction {
+            let current_pos = frame.write_instruction(&instruction, inject_options.size);
+            x = current_pos.0;
+            y = current_pos.1;
+            need_to_write_instruction = false;
+        }
+        while y < inject_options.height {
+            while x < inject_options.width {
                 // Step 2: For each pixel of the frame, extract a byte of the vector
                 // If there is not pixel, we keep filling with the NULL_CHAR to complete`
                 // the frame
                 let r = if data_index < total_data {
-                    instruction_and_data[data_index]
+                    data[data_index]
                 } else {
                     NULL_CHAR
                 };
                 let g = if data_index + 1 < total_data {
-                    instruction_and_data[data_index + 1]
+                    data[data_index + 1]
                 } else {
                     NULL_CHAR
                 };
                 let b = if data_index + 2 < total_data {
-                    instruction_and_data[data_index + 2]
+                    data[data_index + 2]
                 } else {
                     NULL_CHAR
                 };
                 // Step 3: Apply the pixel to the frame
                 frame.write(r, g, b, x, y, inject_options.size);
                 data_index += 3; // 3 because R, G, B
+
+                x += inject_options.size as u16;
             }
+            y += inject_options.size as u16;
+            x = 0;
         }
         if inject_options.show_progress {
             pb.inc(1);
         }
         frames.push(frame);
-    } // Step 4: Loop until the frame is full or that there is no mode byte
+    } // Loop until the frame is full or that there is no mode byte
     if inject_options.show_progress {
         pb.finish_with_message("done");
     }
@@ -173,7 +193,6 @@ fn data_to_frames_method_bw(
             x = current_pos.0;
             y = current_pos.1;
             need_to_write_instruction = false;
-            println!("Wrote instruction");
         }
         while y < inject_options.height {
             while x < inject_options.width {
@@ -208,7 +227,7 @@ fn data_to_frames_method_bw(
             pb.inc(1);
         }
         frames.push(frame);
-    } // Step 4: Loop until the frame is full or that there is no mode byte
+    } // Loop until the frame is full or that there is no mode byte
     if inject_options.show_progress {
         pb.finish_with_message("done");
     }
@@ -309,13 +328,13 @@ mod injectionlogics_tests {
     #[test]
     fn test_data_to_frames_short_message_shorter_frame_expect_2_frame() {
         let instruction = Instruction::new(100);
-        // 2x2 = 4 with 3 colors = 12 chars, thus < 14 => 2 frames
+        // 8x8 = 64 = instruction = 1 frame. Data is 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 2,
-            width: 2,
+            height: 8,
+            width: 8,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
@@ -330,15 +349,15 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_data_to_frames_short_message_remaining_color_isntruction() {
+    fn test_data_to_frames_short_message_remaining_color_instruction() {
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
-                                                                 // 2x2 = 4 with 3 colors = 12 chars, thus < 14 => 2 frames
+                                                                 // 8x8 = 64 with 3 colors = 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
             fps: 30,
-            height: 4,
-            width: 4,
+            height: 8,
+            width: 8,
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
@@ -346,22 +365,26 @@ mod injectionlogics_tests {
         // Text: This
         let frames = data_to_frames_method_rgb(&options, vec![54, 68, 69, 73], instruction);
         let first_frame = &frames[0];
-        let color1 = first_frame.read_coordinate_color(0, 0);
-        assert_eq!(color1.r, 48); // Instruction
-        assert_eq!(color1.g, 23); // Instruction
-        assert_eq!(color1.b, 97); // Instruction
-        let color2 = first_frame.read_coordinate_color(1, 0);
-        assert_eq!(color2.r, 63); // Instruction
-        assert_eq!(color2.g, 120); // Instruction
-        assert_eq!(color2.b, 220); // Instruction
-        let color1 = first_frame.read_coordinate_color(2, 0);
-        assert_eq!(color1.r, 191); // Instruction
-        assert_eq!(color1.g, 162); // Instruction
-        assert_eq!(color1.b, 54); // Letter T
-        let color2 = first_frame.read_coordinate_color(3, 0);
-        assert_eq!(color2.r, 68); // Letter h
-        assert_eq!(color2.g, 69); // Letter i
-        assert_eq!(color2.b, 73); // Letter s
+        let color = first_frame.read_coordinate_color(0, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        let color = first_frame.read_coordinate_color(1, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        let color = first_frame.read_coordinate_color(2, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        // and so on for 64 pixels
+        let second_frame = &frames[1];
+        let color = second_frame.read_coordinate_color(0, 0);
+        assert_eq!(color.r, 54); // Letter h
+        assert_eq!(color.g, 68); // Letter i
+        assert_eq!(color.b, 69); // Letter s
+        let color = second_frame.read_coordinate_color(1, 0);
+        assert_eq!(color.r, 73); // Letter s
     }
 
     #[test]

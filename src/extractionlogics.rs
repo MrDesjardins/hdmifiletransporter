@@ -147,48 +147,28 @@ fn frame_to_data_method_rgb(
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
-            rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always 3, with or without instruction because each pixel is 3 colors (R/G/B)
-            let mut rgb_index = 0; // In case we use only a potion of the three pixels in the instruction, we need to know which to use for data
-            if instruction_bits_index < 64 {
-                for i in 0..3 {
-                    // Loop 3 pixels with 3 colors (R/G/B)
-                    for bit_i in 0..8 {
-                        // 8 bits each color
-                        if instruction_bits_index < 64 {
-                            let bit_value_from_rgb_color = get_bit_at(rgb[i], 7 - bit_i);
-                            // Will get here only on the first frame and until we have the whole instruction message (64 bits)
-                            instruction_data.relevant_byte_count_in_64bits
-                                [64 - instruction_bits_index - 1] = bit_value_from_rgb_color;
-                            instruction_bits_index += 1;
-                        }
-                        if !has_already_instruction_from_past && instruction_bits_index == 63 {
-                            *instruction = Some(instruction_data); // Send it back for subsequence frames to use
-                        }
-                    }
-                    rgb_index = i;
-                }
-            }
-            if instruction_bits_index >= 64 || has_already_instruction_from_past {
+            rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always, with or without instruction
+            let bit_value = get_bit_from_rgb(&rgb);
+            if !has_already_instruction_from_past && instruction_bits_index < 64 {
+                // Will get here only on the first frame and until we have the whole instruction message (64 bits)
+                instruction_data.relevant_byte_count_in_64bits[instruction_bits_index] = bit_value;
+                instruction_bits_index += 1;
+            } else {
                 let max = instruction_data.get_data_size();
-                if rgb_index == 0 {
-                    result.bytes.push(rgb[0]);
-                    if bytes_processes_count + result.bytes.len() as u64 <= max {
-                        return result; // The frame has reached a point that it has no more relevant information
-                    }
+
+                result.bytes.push(rgb[0]);
+                if bytes_processes_count + result.bytes.len() as u64 >= max {
+                    return result; // The frame has reached a point that it has no more relevant information
                 }
 
-                if rgb_index <= 1 {
-                    result.bytes.push(rgb[1]);
-                    if bytes_processes_count + result.bytes.len() as u64 <= max {
-                        return result; // The frame has reached a point that it has no more relevant information
-                    }
+                result.bytes.push(rgb[1]);
+                if bytes_processes_count + result.bytes.len() as u64 >= max {
+                    return result; // The frame has reached a point that it has no more relevant information
                 }
 
-                if rgb_index <= 2 {
-                    result.bytes.push(rgb[2]);
-                    if bytes_processes_count + result.bytes.len() as u64 <= max {
-                        return result; // The frame has reached a point that it has no more relevant information
-                    }
+                result.bytes.push(rgb[2]);
+                if bytes_processes_count + result.bytes.len() as u64 >= max {
+                    return result; // The frame has reached a point that it has no more relevant information
                 }
             }
         }
@@ -229,7 +209,7 @@ fn frame_to_data_method_bw(
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
             rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always, with or without instruction
-            let bit_value = get_bit_from_rgb(rgb);
+            let bit_value = get_bit_from_rgb(&rgb);
             if !has_already_instruction_from_past && instruction_bits_index < 64 {
                 // Will get here only on the first frame and until we have the whole instruction message (64 bits)
                 instruction_data.relevant_byte_count_in_64bits[instruction_bits_index] = bit_value;
@@ -323,21 +303,21 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_rgb() {
-        let size = map_to_size(12, 12); // 8 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantx pixel on the first row
-        let mut frame = VideoFrame::new(12, 12);
+        let size = map_to_size(64, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
+        let mut frame = VideoFrame::new(64, 64);
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
         };
-        // 6 relevant bytes
+        // 0000...00000110 = Tell that we want 6 relevant bytes
         instr.relevant_byte_count_in_64bits[61] = true;
         instr.relevant_byte_count_in_64bits[62] = true;
         instr.relevant_byte_count_in_64bits[63] = false;
         frame.write_instruction(&instr, 1);
 
         // Write 9 bytes
-        frame.write(10, 20, 30, 8, 1, 1);
-        frame.write(40, 50, 60, 9, 1, 1);
-        frame.write(70, 80, 90, 10, 1, 1); // Irrelevant, because instruction specify 6 not 9
+        frame.write(10, 20, 30, 0, 1, 1);
+        frame.write(40, 50, 60, 1, 1, 1);
+        frame.write(70, 80, 90, 2, 1, 1); // Irrelevant, because instruction specify 6 not 9
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;

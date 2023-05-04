@@ -28,7 +28,7 @@ pub fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
 
 /// Get the bit value from black and white value. Does not need to be perfect white and black.
 /// Choose the value depending if closer of 0 or 255 in average
-pub fn get_bit_from_rgb(rgb: Vec<u8>) -> bool {
+pub fn get_bit_from_rgb(rgb: &Vec<u8>) -> bool {
     let sum: u32 = rgb.iter().map(|x| *x as u32).sum();
     sum >= (255_u32 * (rgb.len() as u32) / 2)
 }
@@ -85,17 +85,17 @@ mod injectionlogics_tests {
 
     #[test]
     fn test_get_bit_from_rgb_all_0() {
-        let bit = get_bit_from_rgb(vec![0, 0, 0]);
+        let bit = get_bit_from_rgb(&vec![0, 0, 0]);
         assert_eq!(bit, false);
     }
     #[test]
     fn test_get_bit_from_rgb_all_255() {
-        let bit = get_bit_from_rgb(vec![255, 255, 255]);
+        let bit = get_bit_from_rgb(&vec![255, 255, 255]);
         assert_eq!(bit, true);
     }
     #[test]
     fn test_get_bit_from_rgb_more_than_three() {
-        let bit = get_bit_from_rgb(vec![255, 255, 255, 0, 0, 0, 0, 0]);
+        let bit = get_bit_from_rgb(&vec![255, 255, 255, 0, 0, 0, 0, 0]);
         assert_eq!(bit, false);
     }
 
