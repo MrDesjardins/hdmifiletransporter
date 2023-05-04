@@ -2,7 +2,7 @@ use opencv::videoio::VideoCapture;
 
 use std::fs;
 
-use crate::bitlogics::{get_bit_at, get_bit_from_rgb, mutate_byte};
+use crate::bitlogics::{get_bit_from_rgb, mutate_byte};
 use crate::injectionextraction::map_to_size;
 use crate::instructionlogics::Instruction;
 use crate::options::AlgoFrame;

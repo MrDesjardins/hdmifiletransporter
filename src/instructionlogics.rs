@@ -1,6 +1,5 @@
 use crate::bitlogics::{get_bit_at64, get_byte_from_bits};
 
-///
 /// Information to pass from the injection to the extraction.
 /// The way to move information from one to the other is to
 /// reserve this structure of data.
@@ -57,7 +56,8 @@ impl Instruction {
         result
     }
 
-    /// Get the size back in a number format
+    /// Get the number of relevant bit in a number format. This match the number
+    /// passing in the new function
     pub fn get_data_size(&self) -> u64 {
         let mut result: u64 = 0;
         for i in 0..64 {
@@ -150,6 +150,17 @@ mod injectionlogics_tests {
         assert_eq!(byte_5, 220);
         assert_eq!(byte_6, 191);
         assert_eq!(byte_7, 162);
+    }
+
+    
+    #[test]
+    #[should_panic]
+    fn test_instruction_get_byte_outside_range() {
+        // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+        // 48 23 97 63 120 220 191 162
+        let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+        instruction.get_byte(64); // Outside range
+
     }
 
     #[test]

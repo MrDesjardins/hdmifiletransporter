@@ -3,7 +3,7 @@ pub fn get_bit_at64(input: u64, n: u8) -> bool {
     if n < 64 {
         input & (1 << n) != 0 // 1 == true, 0 == false
     } else {
-        false
+        panic!("The bit position must be between 0 and 63 inclusively on a 64 bits number");
     }
 }
 
@@ -12,7 +12,7 @@ pub fn get_bit_at(input: u8, n: u8) -> bool {
     if n < 8 {
         input & (1 << n) != 0 // 1 == true, 0 == false
     } else {
-        false
+        panic!("The bit position must be between 0 and 7 inclusively on a 8 bits number");
     }
 }
 
@@ -65,6 +65,33 @@ mod injectionlogics_tests {
         assert_eq!(get_bit_at(value, 2), true);
         assert_eq!(get_bit_at(value, 1), true);
         assert_eq!(get_bit_at(value, 0), false);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_get_bit_at_outside_range() {
+        let value = 54; // 0011 0110
+        assert_eq!(get_bit_at(value, 8), false);
+    }
+
+    #[test]
+    fn test_get_bit_at64() {
+        let value = 54; // 0011 0110
+        assert_eq!(get_bit_at64(value, 7), false);
+        assert_eq!(get_bit_at64(value, 6), false);
+        assert_eq!(get_bit_at64(value, 5), true);
+        assert_eq!(get_bit_at64(value, 4), true);
+        assert_eq!(get_bit_at64(value, 3), false);
+        assert_eq!(get_bit_at64(value, 2), true);
+        assert_eq!(get_bit_at64(value, 1), true);
+        assert_eq!(get_bit_at64(value, 0), false);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_get_bit_at64_outside_range() {
+        let value = 54; // 0011 0110
+        assert_eq!(get_bit_at64(value, 64), false);
     }
 
     #[test]

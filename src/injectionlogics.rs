@@ -326,7 +326,7 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_data_to_frames_short_message_shorter_frame_expect_2_frame() {
+    fn test_data_to_frames_method_rgb_short_message_shorter_frame_expect_2_frame() {
         let instruction = Instruction::new(100);
         // 8x8 = 64 = instruction = 1 frame. Data is 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
@@ -349,7 +349,7 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_data_to_frames_short_message_remaining_color_instruction() {
+    fn test_data_to_frames_method_rgb_short_message_remaining_color_instruction() {
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
                                                                  // 8x8 = 64 with 3 colors = 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
@@ -377,7 +377,7 @@ mod injectionlogics_tests {
         assert_eq!(color.r, 255); // Instruction
         assert_eq!(color.g, 255); // Instruction
         assert_eq!(color.b, 255); // Instruction
-        // and so on for 64 pixels
+                                  // and so on for 64 pixels
         let second_frame = &frames[1];
         let color = second_frame.read_coordinate_color(0, 0);
         assert_eq!(color.r, 54); // Letter h
@@ -385,6 +385,24 @@ mod injectionlogics_tests {
         assert_eq!(color.b, 69); // Letter s
         let color = second_frame.read_coordinate_color(1, 0);
         assert_eq!(color.r, 73); // Letter s
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_data_to_frames_method_rgb_frame_too_small() {
+        let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
+                                                                 // 8x8 = 64 with 3 colors = 12 chars, thus < 14 => 2 frames
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 8,
+            width: 7, // 8x7 = 56... smaller than 64
+            size: 1,
+            algo: crate::options::AlgoFrame::RGB,
+            show_progress: false,
+        };
+        data_to_frames_method_rgb(&options, vec![54, 68, 69, 73], instruction);
     }
 
     #[test]
@@ -413,7 +431,7 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_data_to_frames_method_blackwhite() {
+    fn test_data_to_frames_method_bw() {
         let instruction = Instruction::new(100);
         let options = InjectOptions {
             file_path: "".to_string(),
@@ -439,7 +457,7 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_data_to_frames_method_blackwhite_remaining_color_eof() {
+    fn test_data_to_frames_method_bw_with_restriction_size() {
         let instruction = Instruction::new(3465345363523452834); // 0011000000010111011000010011111101111000110111001011111110100010
                                                                  // 2x2 = 4 bits per frame. With 4 chars we have 4 = 32bits. 32/4 = 8 frames
         let options = InjectOptions {
@@ -549,4 +567,32 @@ mod injectionlogics_tests {
         assert_eq!(color.g, 0);
         assert_eq!(color.b, 0);
     }
+
+    #[test]
+    #[should_panic]
+    fn test_data_to_frames_method_bw_frame_too_small() {
+        let instruction = Instruction::new(100);
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 8,
+            width: 7,
+            size: 1,
+            algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
+        };
+        // Text: This is a test, 14 chars = 14 bytes = 14*8bit =112 pixel
+        // Instruction is 64 bits = 64 pixel
+        // Total pixel: 176
+        // 1 frame is 8x48 pixel = 64
+        // 176/64 = 3 frames
+        let frames = data_to_frames_method_bw(
+            &options,
+            vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
+        );
+        assert_eq!(frames.len(), 3);
+    }
+
 }
