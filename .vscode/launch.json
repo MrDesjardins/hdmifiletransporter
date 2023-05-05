@@ -7,7 +7,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in library 'hdmifiletransporter'",
+      "name": "Unit tests library",
       "cargo": {
         "args": ["test", "--no-run", "--lib", "--package=hdmifiletransporter"],
         "filter": {
@@ -21,7 +21,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug executable 'hdmifiletransporter' - Inject",
+      "name": "Debug Inject 'hdmifiletransporter'",
       "cargo": {
         "args": [
           "build",
@@ -56,7 +56,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug executable 'hdmifiletransporter' - Extract",
+      "name": "Debug Extract 'hdmifiletransporter'",
       "cargo": {
         "args": [
           "build",
@@ -72,7 +72,7 @@
         "-m",
         "extract",
         "-i",
-        "outputs/out_bw_red_fix_2.mp4",
+        "outputs/out1.mp4",
         "-o",
         "outputs/text1.txt",
         "--fps",
@@ -82,31 +82,31 @@
         "--width",
         "1920",
         "--size",
-        "1",
+        "10",
         "-a",
         "bw"
       ],
       "cwd": "${workspaceFolder}"
     },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "Debug unit tests in executable 'hdmifiletransporter'",
-      "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--bin=hdmifiletransporter",
-          "--package=hdmifiletransporter"
-        ],
-        "filter": {
-          "name": "hdmifiletransporter",
-          "kind": "bin"
-        }
-      },
-      "args": [],
-      "cwd": "${workspaceFolder}"
-    },
+    // {
+    //   "type": "lldb",
+    //   "request": "launch",
+    //   "name": "Debug unit tests in executable 'hdmifiletransporter'",
+    //   "cargo": {
+    //     "args": [
+    //       "test",
+    //       "--no-run",
+    //       "--bin=hdmifiletransporter",
+    //       "--package=hdmifiletransporter"
+    //     ],
+    //     "filter": {
+    //       "name": "hdmifiletransporter",
+    //       "kind": "bin"
+    //     }
+    //   },
+    //   "args": [],
+    //   "cwd": "${workspaceFolder}"
+    // },
     {
       "type": "lldb",
       "request": "launch",

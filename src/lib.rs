@@ -54,10 +54,10 @@ execute_with_video_options(options);
 */
 
 mod bitlogics;
-mod instructionlogics;
 mod extractionlogics;
 mod injectionextraction;
 mod injectionlogics;
+mod instructionlogics;
 pub mod options;
 mod videoframe;
 

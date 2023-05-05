@@ -16,7 +16,9 @@ pub fn get_bit_at(input: u8, n: u8) -> bool {
     }
 }
 
-// Get color from a bit
+/// Get color of white or back from a bit
+/// 1 -> true -> white
+/// 0 -> false -> black
 pub fn get_rgb_for_bit(bit: bool) -> (u8, u8, u8) {
     if bit {
         // If true (1) = white = 255,255,255

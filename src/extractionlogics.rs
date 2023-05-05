@@ -56,12 +56,13 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
     let mut is_red_frame_found = false;
     let mut relevant_frame_count = 0;
     let mut previous_frame_checksum = 0;
-
     let total_expected_frame = frames.len() as u64;
-    println!("Initial Frames count: {}", total_expected_frame);
     let pb = ProgressBar::new(total_expected_frame);
     let mut instruction: Option<Instruction> = None;
     let mut bytes_processes_count = 0;
+    if extract_options.show_progress {
+        println!("Initial Frames count: {}", total_expected_frame);
+    }
     for frame in frames.iter() {
         let frame_data = if extract_options.algo == AlgoFrame::RGB {
             frame_to_data_method_rgb(
@@ -70,6 +71,7 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
                 extract_options.size,
                 &mut instruction,
                 bytes_processes_count,
+                is_red_frame_found,
             )
         } else {
             frame_to_data_method_bw(
@@ -78,6 +80,7 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
                 extract_options.size,
                 &mut instruction,
                 bytes_processes_count,
+                is_red_frame_found,
             )
         };
         bytes_processes_count += frame_data.bytes.len() as u64;
@@ -98,20 +101,22 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             }
         } else if is_red_frame_found && frame_data.is_red_frame && byte_data.len() > 0 {
             // Check length in case there is two or more red frame next to each other
-            println!("Relevant Frames count: {}", relevant_frame_count);
+            if extract_options.show_progress {
+                println!("Relevant Frames count: {}", relevant_frame_count);
+            }
             return byte_data; // We have all our frames
         } else if !is_red_frame_found && frame_data.is_red_frame {
             is_red_frame_found = true; // From that point, we start accumulating byte
         }
     }
-    let p = relevant_frame_count / total_expected_frame;
+    let p = relevant_frame_count as f32 / total_expected_frame as f32;
     if extract_options.show_progress {
         pb.finish_with_message("done");
+        println!(
+            "Relevant Frames count: {}/{} ({:.3})",
+            relevant_frame_count, total_expected_frame, p
+        );
     }
-    println!(
-        "Relevant Frames count: {}/{} ({:.3})",
-        relevant_frame_count, total_expected_frame, p
-    );
     byte_data
 }
 
@@ -127,6 +132,7 @@ fn frame_to_data_method_rgb(
     info_size: u8,
     instruction: &mut Option<Instruction>,
     bytes_processes_count: u64,
+    red_frame_found: bool,
 ) -> FrameBytesInfo {
     let width = actual_size.width;
     let height = actual_size.height;
@@ -148,27 +154,30 @@ fn frame_to_data_method_rgb(
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
             rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always, with or without instruction
-            let bit_value = get_bit_from_rgb(&rgb);
-            if !has_already_instruction_from_past && instruction_bits_index < 64 {
-                // Will get here only on the first frame and until we have the whole instruction message (64 bits)
-                instruction_data.relevant_byte_count_in_64bits[instruction_bits_index] = bit_value;
-                instruction_bits_index += 1;
-            } else {
-                let max = instruction_data.get_data_size();
+            if red_frame_found {
+                let bit_value = get_bit_from_rgb(&rgb);
+                if !has_already_instruction_from_past && instruction_bits_index < 64 {
+                    // Will get here only on the first frame and until we have the whole instruction message (64 bits)
+                    instruction_data.relevant_byte_count_in_64bits[instruction_bits_index] =
+                        bit_value;
+                    instruction_bits_index += 1;
+                } else {
+                    let max = instruction_data.get_data_size();
 
-                result.bytes.push(rgb[0]);
-                if bytes_processes_count + result.bytes.len() as u64 >= max {
-                    return result; // The frame has reached a point that it has no more relevant information
-                }
+                    result.bytes.push(rgb[0]);
+                    if bytes_processes_count + result.bytes.len() as u64 >= max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
 
-                result.bytes.push(rgb[1]);
-                if bytes_processes_count + result.bytes.len() as u64 >= max {
-                    return result; // The frame has reached a point that it has no more relevant information
-                }
+                    result.bytes.push(rgb[1]);
+                    if bytes_processes_count + result.bytes.len() as u64 >= max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
 
-                result.bytes.push(rgb[2]);
-                if bytes_processes_count + result.bytes.len() as u64 >= max {
-                    return result; // The frame has reached a point that it has no more relevant information
+                    result.bytes.push(rgb[2]);
+                    if bytes_processes_count + result.bytes.len() as u64 >= max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
                 }
             }
         }
@@ -186,6 +195,7 @@ fn frame_to_data_method_bw(
     info_size: u8,
     instruction: &mut Option<Instruction>,
     bytes_processes_count: u64,
+    red_frame_found: bool,
 ) -> FrameBytesInfo {
     let width = actual_size.width;
     let height = actual_size.height;
@@ -197,37 +207,40 @@ fn frame_to_data_method_bw(
     };
     let mut bit_index: u8 = 7;
     let mut data: u8 = 0;
-
     let mut instruction_data = instruction.unwrap_or_else(|| Instruction {
         relevant_byte_count_in_64bits: [false; 64],
     });
     let mut instruction_bits_index = 0;
     let has_already_instruction_from_past = instruction.is_some();
-
     let mut rgbs = Vec::new();
+
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
             let rgb = get_pixel(source, x, y, info_size);
             rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always, with or without instruction
-            let bit_value = get_bit_from_rgb(&rgb);
-            if !has_already_instruction_from_past && instruction_bits_index < 64 {
-                // Will get here only on the first frame and until we have the whole instruction message (64 bits)
-                instruction_data.relevant_byte_count_in_64bits[instruction_bits_index] = bit_value;
-                instruction_bits_index += 1;
-            } else {
-                mutate_byte(&mut data, bit_value, bit_index);
-                bit_index = if bit_index == 0 { 7 } else { bit_index - 1 };
-                let max = instruction_data.get_data_size();
-                if (bytes_processes_count + result.bytes.len() as u64) <= max && bit_index == 7 {
-                    result.bytes.push(data);
-                    data = 0; // Reset, next character needs to accumulate 8 bits
+            if red_frame_found {
+                let bit_value = get_bit_from_rgb(&rgb);
+                if !has_already_instruction_from_past && instruction_bits_index < 64 {
+                    // Will get here only on the first frame and until we have the whole instruction message (64 bits)
+                    instruction_data.relevant_byte_count_in_64bits[instruction_bits_index] =
+                        bit_value;
+                    instruction_bits_index += 1;
+                } else {
+                    mutate_byte(&mut data, bit_value, bit_index);
+                    bit_index = if bit_index == 0 { 7 } else { bit_index - 1 };
+                    let max = instruction_data.get_data_size();
+                    if (bytes_processes_count + result.bytes.len() as u64) <= max && bit_index == 7
+                    {
+                        result.bytes.push(data);
+                        data = 0; // Reset, next character needs to accumulate 8 bits
+                    }
+                    if bytes_processes_count + result.bytes.len() as u64 == max {
+                        return result; // The frame has reached a point that it has no more relevant information
+                    }
                 }
-                if bytes_processes_count + result.bytes.len() as u64 == max {
-                    return result; // The frame has reached a point that it has no more relevant information
+                if !has_already_instruction_from_past && instruction_bits_index == 63 {
+                    *instruction = Some(instruction_data); // Send it back for subsequence frames to use
                 }
-            }
-            if !has_already_instruction_from_past && instruction_bits_index == 63 {
-                *instruction = Some(instruction_data); // Send it back for subsequence frames to use
             }
         }
     }
@@ -321,7 +334,8 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0);
+        let result =
+            frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0, true);
         assert_eq!(result.bytes.len(), 6);
         assert_eq!(result.bytes[0], 10);
         assert_eq!(result.bytes[1], 20);
@@ -360,7 +374,7 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0);
+        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0, true);
         assert_eq!(result.bytes[0], write_data);
         assert_eq!(result.is_red_frame, false);
     }
@@ -388,7 +402,7 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0);
+        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0, true);
         assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
         assert_eq!(result.is_red_frame, false);
     }
@@ -449,7 +463,7 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 1);
+        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 1, true);
         assert_eq!(result.bytes.len(), 2); // The frame should have only the relevant byte #1 and #2
         assert_eq!(result.bytes[0], 59);
         assert_eq!(result.bytes[1], 251);

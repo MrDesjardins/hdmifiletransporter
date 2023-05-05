@@ -73,15 +73,16 @@ fn data_to_frames_method_rgb(
     }
 
     let total_data = data.len();
-    let total_bytes = total_data as f64 + 64_f64; // Instruction
-    let total_expected_frame: u64 = (total_bytes
+    let total_bytes: f64 = total_data as f64 + 64_f64; // Instruction
+    let total_expected_frame = (total_bytes
         / (f64::from(inject_options.width) * f64::from(inject_options.height)
-            / f64::from(inject_options.size)
-            / 8.0)) as u64;
-    let pb = ProgressBar::new(total_expected_frame);
+            / f64::from(inject_options.size * inject_options.size)
+            / 8.0))
+        .ceil();
+    let pb = ProgressBar::new(total_expected_frame as u64);
     if inject_options.show_progress {
         println!(
-            "Inserting {} bytes into {} frames",
+            "Inserting {} into {} frames",
             pretty_bytes(total_bytes as u64, None),
             total_expected_frame
         );
@@ -166,20 +167,23 @@ fn data_to_frames_method_bw(
 
     let total_data = data.len();
     let total_bytes = total_data as f64 + 64_f64; // Instruction
-    let total_expected_frame: u64 = (total_bytes * 8.0
+    let total_expected_frame = (total_bytes * 8.0
         / (f64::from(inject_options.width) * f64::from(inject_options.height)
             / f64::from(inject_options.size)
-            / f64::from(inject_options.size))) as u64;
-    let pb = ProgressBar::new(total_expected_frame);
+            / f64::from(inject_options.size)))
+    .ceil();
+    let pb = ProgressBar::new(total_expected_frame as u64);
     if inject_options.show_progress {
         println!(
-            "Inserting {} bytes into {} frames",
+            "Inserting {} into {} frames",
             pretty_bytes(total_bytes as u64, None),
             total_expected_frame
         );
     }
 
     let mut need_to_write_instruction = true;
+    let vertical = inject_options.height - inject_options.size as u16;
+    let horizontal = inject_options.width - inject_options.size as u16;
     while data_index < total_data {
         let mut x: u16 = 0;
         let mut y: u16 = 0;
@@ -194,14 +198,13 @@ fn data_to_frames_method_bw(
             y = current_pos.1;
             need_to_write_instruction = false;
         }
-        while y < inject_options.height {
-            while x < inject_options.width {
+        while y <= vertical {
+            while x <= horizontal {
                 // For each pixel of the frame, extract a bit of the active byte of the vector
                 if data_index < total_data {
                     // Still have a char, we get the bit we are at of that char
                     let bit = get_bit_at(data[data_index], bit_index);
                     let (r, g, b) = get_rgb_for_bit(bit);
-                    println!("[{},{}], RGB {}/{}/{}", x, y, r, g, b);
                     frame.write(r, g, b, x, y, inject_options.size);
                 } else {
                     // If there is no char, we keep filling with the NULL_CHAR char to complete frame
@@ -249,7 +252,9 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
     //let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
     let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
     let total_frames = frames.len() as u64;
-    println!("There are {} frames to inject", total_frames);
+    if options.show_progress {
+        println!("Frames to video");
+    }
     let pb = ProgressBar::new(total_frames);
 
     match fourcc {
@@ -431,8 +436,8 @@ mod injectionlogics_tests {
     }
 
     #[test]
-    fn test_data_to_frames_method_bw() {
-        let instruction = Instruction::new(100);
+    fn test_data_to_frames_method_bw_frame_size() {
+        let instruction = Instruction::new(100); // 00000000 ...  01100100
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
@@ -454,6 +459,318 @@ mod injectionlogics_tests {
             instruction,
         );
         assert_eq!(frames.len(), 3);
+
+        let frame = &frames[0];
+        let color = frame.read_coordinate_color(0, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+    }
+
+    #[test]
+    fn test_data_to_frames_method_bw_instruction() {
+        let instruction = Instruction::new(100); // 00000000 ...  0110 0100
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 8,
+            width: 100,
+            size: 1,
+            algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
+        };
+        // Instruction is 64 bits = 64 pixel
+        let frames = data_to_frames_method_bw(
+            &options,
+            vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
+        );
+
+        let frame = &frames[0];
+        let mut color = frame.read_coordinate_color(56, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(57, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(58, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(59, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(60, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(61, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(62, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(63, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+
+        color = frame.read_coordinate_color(64, 0);
+        assert_eq!(color.r, 0); // 54
+        assert_eq!(color.g, 0); // 54
+        assert_eq!(color.b, 0); // 54
+        color = frame.read_coordinate_color(65, 0);
+        assert_eq!(color.r, 0); // 54
+        assert_eq!(color.g, 0); // 54
+        assert_eq!(color.b, 0); // 54
+        color = frame.read_coordinate_color(66, 0);
+        assert_eq!(color.r, 255); // 54
+        assert_eq!(color.g, 255); // 54
+        assert_eq!(color.b, 255); // 54
+        color = frame.read_coordinate_color(67, 0);
+        assert_eq!(color.r, 255); // 54
+        assert_eq!(color.g, 255); // 54
+        assert_eq!(color.b, 255); // 54
+        color = frame.read_coordinate_color(68, 0);
+        assert_eq!(color.r, 0); // 54
+        assert_eq!(color.g, 0); // 54
+        assert_eq!(color.b, 0); // 54
+        color = frame.read_coordinate_color(69, 0);
+        assert_eq!(color.r, 255); // 54
+        assert_eq!(color.g, 255); // 54
+        assert_eq!(color.b, 255); // 54
+        color = frame.read_coordinate_color(70, 0);
+        assert_eq!(color.r, 255); // 54
+        assert_eq!(color.g, 255); // 54
+        assert_eq!(color.b, 255); // 54
+        color = frame.read_coordinate_color(71, 0);
+        assert_eq!(color.r, 0); // 54
+        assert_eq!(color.g, 0); // 54
+        assert_eq!(color.b, 0); // 54
+    }
+
+    #[test]
+    fn test_data_to_frames_method_bw_size10() {
+        let instruction = Instruction::new(100);
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 150,
+            width: 150,
+            size: 10,
+            algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
+        };
+        // Text: This is a test, 14 chars = 14 bytes = 14*8bit =112 pixel
+        // Instruction is 64 bits = 64 pixel
+        // Size is 10
+        // Total pixel: 176 * (10x10) 17 600 total pixel
+        // 1 frame is 150x150 pixel = 22 500 pixels
+        // 22 500/17 600 < 1 = 1 frame
+        let frames = data_to_frames_method_bw(
+            &options,
+            vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
+        );
+        assert_eq!(frames.len(), 1);
+    }
+
+    #[test]
+    fn test_data_to_frames_method_bw_instruction_size2() {
+        let instruction = Instruction::new(100); // 00000000 ...  0110 0100
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 8,
+            width: 200,
+            size: 2,
+            algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
+        };
+        // Instruction is 64 bits = 64 pixel
+        let frames = data_to_frames_method_bw(
+            &options,
+            vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
+        );
+
+        let frame = &frames[0];
+        let mut color = frame.read_coordinate_color(112, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(113, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(112, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(113, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+
+        color = frame.read_coordinate_color(114, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(114, 1);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(115, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(115, 1);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+
+        color = frame.read_coordinate_color(116, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(116, 1);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(117, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(117, 1);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+
+        color = frame.read_coordinate_color(118, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(118, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(119, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(119, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+
+        color = frame.read_coordinate_color(120, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(120, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(121, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(121, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+
+        color = frame.read_coordinate_color(122, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(122, 1);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(123, 0);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+        color = frame.read_coordinate_color(123, 1);
+        assert_eq!(color.r, 255); // Instruction
+        assert_eq!(color.g, 255); // Instruction
+        assert_eq!(color.b, 255); // Instruction
+
+        color = frame.read_coordinate_color(124, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(124, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(125, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(125, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+
+        color = frame.read_coordinate_color(126, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(126, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(127, 0);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+        color = frame.read_coordinate_color(127, 1);
+        assert_eq!(color.r, 0); // Instruction
+        assert_eq!(color.g, 0); // Instruction
+        assert_eq!(color.b, 0); // Instruction
+
+        // color = frame.read_coordinate_color(64, 0);
+        // assert_eq!(color.r, 0); // 54
+        // assert_eq!(color.g, 0); // 54
+        // assert_eq!(color.b, 0); // 54
+        // color = frame.read_coordinate_color(65, 0);
+        // assert_eq!(color.r, 0); // 54
+        // assert_eq!(color.g, 0); // 54
+        // assert_eq!(color.b, 0); // 54
+        // color = frame.read_coordinate_color(66, 0);
+        // assert_eq!(color.r, 255); // 54
+        // assert_eq!(color.g, 255); // 54
+        // assert_eq!(color.b, 255); // 54
+        // color = frame.read_coordinate_color(67, 0);
+        // assert_eq!(color.r, 255); // 54
+        // assert_eq!(color.g, 255); // 54
+        // assert_eq!(color.b, 255); // 54
+        // color = frame.read_coordinate_color(68, 0);
+        // assert_eq!(color.r, 0); // 54
+        // assert_eq!(color.g, 0); // 54
+        // assert_eq!(color.b, 0); // 54
+        // color = frame.read_coordinate_color(69, 0);
+        // assert_eq!(color.r, 255); // 54
+        // assert_eq!(color.g, 255); // 54
+        // assert_eq!(color.b, 255); // 54
+        // color = frame.read_coordinate_color(70, 0);
+        // assert_eq!(color.r, 255); // 54
+        // assert_eq!(color.g, 255); // 54
+        // assert_eq!(color.b, 255); // 54
+        // color = frame.read_coordinate_color(71, 0);
+        // assert_eq!(color.r, 0); // 54
+        // assert_eq!(color.g, 0); // 54
+        // assert_eq!(color.b, 0); // 54
     }
 
     #[test]
@@ -594,5 +911,4 @@ mod injectionlogics_tests {
         );
         assert_eq!(frames.len(), 3);
     }
-
 }

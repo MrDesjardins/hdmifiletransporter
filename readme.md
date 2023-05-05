@@ -122,17 +122,17 @@ hdmifiletransporter -m inject -i testAssets/test1.zip -o out1.mp4
 ### Inject Text to Video
 
 ```sh
-cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4 --fps 30 --height 1080 --width 1920 --size 1
+cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4 --fps 30 --height 1080 --width 1920 --size 1 -p true
 
-cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4 --fps 30 --height 1080 --width 1920 --size 1 -a bw
+cargo run -- -m inject -i testAssets/text1.txt -o outputs/out1.mp4 --fps 30 --height 1080 --width 1920 --size 1 -p true -a bw
 
 ```
 ### Extract Text from Video
 
 ```sh
-cargo run -- -m extract -i outputs/out1.mp4 -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1
+cargo run -- -m extract -i outputs/out1.mp4 -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1 -p true
 
-cargo run -- -m extract -i outputs/out1.mp4 -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1 -a bw
+cargo run -- -m extract -i outputs/out1.mp4 -o outputs/text1.txt --fps 30 --height 1080 --width 1920 --size 1 -p true -a bw
 ```
 # Benchmark
 

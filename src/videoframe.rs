@@ -84,8 +84,8 @@ impl VideoFrame {
         let mut instruction_index = 0;
         let mut x: u16 = 0;
         let mut y: u16 = 0;
-        'outer: for i in 0..self.frame_size.height as u16 {
-            for j in 0..self.frame_size.width as u16 {
+        'outer: for i in (0..self.frame_size.height as u16).step_by(size as usize) {
+            for j in (0..self.frame_size.width as u16).step_by(size as usize) {
                 if instruction_index < 64 {
                     let (r, g, b) = get_rgb_for_bit(
                         instruction.relevant_byte_count_in_64bits[instruction_index],
@@ -101,7 +101,7 @@ impl VideoFrame {
             y = i + size as u16;
         }
         if x == self.frame_size.width as u16 {
-            x = 0; // y is already increased 
+            x = 0; // y is already increased
         }
         return (x, y);
     }
