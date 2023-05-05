@@ -163,7 +163,6 @@ fn frame_to_data_method_rgb(
                     instruction_bits_index += 1;
                 } else {
                     let max = instruction_data.get_data_size();
-
                     result.bytes.push(rgb[0]);
                     if bytes_processes_count + result.bytes.len() as u64 >= max {
                         return result; // The frame has reached a point that it has no more relevant information
@@ -315,7 +314,43 @@ mod extractionlogics_tests {
     use super::*;
 
     #[test]
-    fn test_frame_to_data_method_rgb() {
+    fn test_frame_to_data_method_rgb_different_samerow() {
+        let size = map_to_size(100, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
+        let mut frame = VideoFrame::new(100, 64);
+        let mut instr = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        // 0000...00000110 = Tell that we want 6 relevant bytes
+        instr.relevant_byte_count_in_64bits[61] = true;
+        instr.relevant_byte_count_in_64bits[62] = true;
+        instr.relevant_byte_count_in_64bits[63] = false;
+        frame.write_instruction(&instr, 1);
+
+        // Write 9 bytes
+        frame.write(10, 20, 30, 64, 0, 1);
+        frame.write(40, 50, 60, 65, 0, 1);
+        frame.write(70, 80, 90, 66, 0, 1); // Irrelevant, because instruction specify 6 not 9
+
+        // Act
+        let mut instruction_from_frame: Option<Instruction> = None;
+        let result =
+            frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        assert_eq!(result.bytes.len(), 6);
+        assert_eq!(result.bytes[0], 10);
+        assert_eq!(result.bytes[1], 20);
+        assert_eq!(result.bytes[2], 30);
+        assert_eq!(result.bytes[3], 40);
+        assert_eq!(result.bytes[4], 50);
+        assert_eq!(result.bytes[5], 60);
+        // -> Below does not exist since in the instruction we marked to have only 6 relevants!
+        // assert_eq!(result.bytes[6], 70);
+        // assert_eq!(result.bytes[7], 80);
+        // assert_eq!(result.bytes[8], 90);
+        assert_eq!(result.is_red_frame, false);
+    }
+
+    #[test]
+    fn test_frame_to_data_method_rgb_different_row() {
         let size = map_to_size(64, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(64, 64);
         let mut instr = Instruction {
@@ -336,6 +371,42 @@ mod extractionlogics_tests {
         let mut instruction_from_frame: Option<Instruction> = None;
         let result =
             frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        assert_eq!(result.bytes.len(), 6);
+        assert_eq!(result.bytes[0], 10);
+        assert_eq!(result.bytes[1], 20);
+        assert_eq!(result.bytes[2], 30);
+        assert_eq!(result.bytes[3], 40);
+        assert_eq!(result.bytes[4], 50);
+        assert_eq!(result.bytes[5], 60);
+        // -> Below does not exist since in the instruction we marked to have only 6 relevants!
+        // assert_eq!(result.bytes[6], 70);
+        // assert_eq!(result.bytes[7], 80);
+        // assert_eq!(result.bytes[8], 90);
+        assert_eq!(result.is_red_frame, false);
+    }
+
+    #[test]
+    fn test_frame_to_data_method_rgb_size2() {
+        let size = map_to_size(128, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
+        let mut frame = VideoFrame::new(128, 64);
+        let mut instr = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        // 0000...00000110 = Tell that we want 6 relevant bytes
+        instr.relevant_byte_count_in_64bits[61] = true;
+        instr.relevant_byte_count_in_64bits[62] = true;
+        instr.relevant_byte_count_in_64bits[63] = false;
+        frame.write_instruction(&instr, 2);
+
+        // Write 9 bytes
+        frame.write(10, 20, 30, 0, 2, 2);
+        frame.write(40, 50, 60, 2, 2, 2);
+        frame.write(70, 80, 90, 4, 2, 2); // Irrelevant, because instruction specify 6 not 9
+
+        // Act
+        let mut instruction_from_frame: Option<Instruction> = None;
+        let result =
+            frame_to_data_method_rgb(&frame, size, 2, &mut instruction_from_frame, 0, true);
         assert_eq!(result.bytes.len(), 6);
         assert_eq!(result.bytes[0], 10);
         assert_eq!(result.bytes[1], 20);
@@ -375,34 +446,35 @@ mod extractionlogics_tests {
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
         assert_eq!(result.bytes[0], write_data);
         assert_eq!(result.is_red_frame, false);
     }
 
     #[test]
-    fn test_frame_to_data_method_bw_with_content_smaller_frame() {
-        let size = map_to_size(64, 64);
-        let mut frame = VideoFrame::new(64, 64);
+    fn test_frame_to_data_method_bw_size2() {
+        let size = map_to_size(128, 64);
+        let mut frame = VideoFrame::new(128, 64);
 
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
         };
         instr.relevant_byte_count_in_64bits[63] = true; // 1 byte
-        frame.write_instruction(&instr, 1);
+        frame.write_instruction(&instr, 2);
 
         // Write on the second row (first was instruction)
-        frame.write(0, 0, 0, 0, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 1, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 2, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 3, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 4, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 5, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 6, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 7, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 0, 2, 2); // White 0 bit
+        frame.write(0, 0, 0, 2, 2, 2); // White 0 bit
+        frame.write(255, 255, 255, 4, 2, 2); // Black 1 bit
+        frame.write(255, 255, 255, 6, 2, 2); // Black 1 bit
+        frame.write(255, 255, 255, 8, 2, 2); // Black 1 bit
+        frame.write(0, 0, 0, 10, 2, 2); // White 0 bit
+        frame.write(255, 255, 255, 12, 2, 2); // Black 1 bit
+        frame.write(255, 255, 255, 14, 2, 2); // Black 1 bit
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        let result = frame_to_data_method_bw(&frame, size, 2, &mut instruction_from_frame, 0, true);
         assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
         assert_eq!(result.is_red_frame, false);
     }

@@ -21,7 +21,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug Inject 'hdmifiletransporter'",
+      "name": "Inject 'hdmifiletransporter'",
       "cargo": {
         "args": [
           "build",
@@ -37,7 +37,7 @@
         "-m",
         "inject",
         "-i",
-        "testAssets/text1.txt",
+        "testAssets/text2.txt",
         "-o",
         "outputs/out1.mp4",
         "--fps",
@@ -56,7 +56,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug Extract 'hdmifiletransporter'",
+      "name": "Extract 'hdmifiletransporter'",
       "cargo": {
         "args": [
           "build",
@@ -74,7 +74,7 @@
         "-i",
         "outputs/out1.mp4",
         "-o",
-        "outputs/text1.txt",
+        "outputs/text2.txt",
         "--fps",
         "30",
         "--height",
@@ -82,7 +82,7 @@
         "--width",
         "1920",
         "--size",
-        "10",
+        "1",
         "-a",
         "bw"
       ],

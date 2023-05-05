@@ -8,7 +8,7 @@ use crate::{
     bitlogics::{get_bit_at, get_rgb_for_bit},
     injectionextraction::NULL_CHAR,
     instructionlogics::Instruction,
-    options::{AlgoFrame, InjectOptions},
+    options::{self, AlgoFrame, InjectOptions},
     videoframe::VideoFrame,
 };
 
@@ -246,11 +246,16 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
     // See list of codec here: https://learn.fotoware.com/On-Premises/Getting_started/Metadata_in_the_FotoWare_system/04_Operators_to_search_in_specific_fields/FourCC_codes
     // Careful, codec and file extension must match
 
-    //let fourcc = VideoWriter::fourcc('p', 'n', 'g', ' ');
+    //let fourcc = VideoWriter::fourcc('p', 'n', 'g', ' '); // Required when using RGB because lossless compression
     //let fourcc =  VideoWriter::fourcc('j', 'p', 'e', 'g');
     //let fourcc = VideoWriter::fourcc('H','2','6','4');
     //let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
-    let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
+    //let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
+    let fourcc = if options.algo == options::AlgoFrame::RGB {
+        VideoWriter::fourcc('p', 'n', 'g', ' ')
+    } else {
+        VideoWriter::fourcc('a', 'v', 'c', '1')
+    };
     let total_frames = frames.len() as u64;
     if options.show_progress {
         println!("Frames to video");
@@ -385,11 +390,11 @@ mod injectionlogics_tests {
                                   // and so on for 64 pixels
         let second_frame = &frames[1];
         let color = second_frame.read_coordinate_color(0, 0);
-        assert_eq!(color.r, 54); // Letter h
-        assert_eq!(color.g, 68); // Letter i
-        assert_eq!(color.b, 69); // Letter s
+        assert_eq!(color.r, 54); // 1st content
+        assert_eq!(color.g, 68); // 2nd content
+        assert_eq!(color.b, 69); // 3rd
         let color = second_frame.read_coordinate_color(1, 0);
-        assert_eq!(color.r, 73); // Letter s
+        assert_eq!(color.r, 73); // 4th
     }
 
     #[test]
