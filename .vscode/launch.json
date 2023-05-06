@@ -82,9 +82,11 @@
         "--width",
         "1920",
         "--size",
-        "1",
+        "10",
         "-a",
-        "bw"
+        "bw",
+        "-p",
+        "true"
       ],
       "cwd": "${workspaceFolder}"
     },

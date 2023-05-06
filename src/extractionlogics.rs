@@ -14,6 +14,8 @@ use opencv::videoio::CAP_ANY;
 
 use crate::options::ExtractOptions;
 use indicatif::ProgressBar;
+use pretty_bytes_rust::pretty_bytes;
+
 struct FrameBytesInfo {
     pub bytes: Vec<u8>,
     pub is_red_frame: bool,
@@ -60,6 +62,7 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
     let pb = ProgressBar::new(total_expected_frame);
     let mut instruction: Option<Instruction> = None;
     let mut bytes_processes_count = 0;
+    let mut frame_counter = 0;
     if extract_options.show_progress {
         println!("Initial Frames count: {}", total_expected_frame);
     }
@@ -68,7 +71,7 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             frame_to_data_method_rgb(
                 frame,
                 actual_size,
-                extract_options.size,
+                extract_options,
                 &mut instruction,
                 bytes_processes_count,
                 is_red_frame_found,
@@ -77,7 +80,7 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             frame_to_data_method_bw(
                 frame,
                 actual_size,
-                extract_options.size,
+                extract_options,
                 &mut instruction,
                 bytes_processes_count,
                 is_red_frame_found,
@@ -87,6 +90,13 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
         // Set the instruction for all subsequent frame
         if instruction.is_none() && frame_data.instruction.is_some() {
             instruction = frame_data.instruction;
+            if extract_options.show_progress {
+                println!(
+                    "Instruction found with data size of {}",
+                   // pretty_bytes(instruction.unwrap().get_data_size() as u64, None)
+                   instruction.unwrap().get_data_size()
+                );
+            }
         }
 
         if is_red_frame_found && !frame_data.is_red_frame {
@@ -107,7 +117,11 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             return byte_data; // We have all our frames
         } else if !is_red_frame_found && frame_data.is_red_frame {
             is_red_frame_found = true; // From that point, we start accumulating byte
+            if extract_options.show_progress {
+                println!("Red frame found at frame # {frame_counter}");
+            }
         }
+        frame_counter += 1;
     }
     let p = relevant_frame_count as f32 / total_expected_frame as f32;
     if extract_options.show_progress {
@@ -129,14 +143,14 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
 fn frame_to_data_method_rgb(
     source: &VideoFrame,
     actual_size: Size,
-    info_size: u8,
+    options: &ExtractOptions,
     instruction: &mut Option<Instruction>,
     bytes_processes_count: u64,
     red_frame_found: bool,
 ) -> FrameBytesInfo {
     let width = actual_size.width;
     let height = actual_size.height;
-    let size = info_size as usize;
+    let size = options.size as usize;
     let mut result = FrameBytesInfo {
         bytes: Vec::new(),
         is_red_frame: false,
@@ -152,7 +166,7 @@ fn frame_to_data_method_rgb(
     let mut rgbs = Vec::new();
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
-            let rgb = get_pixel(source, x, y, info_size);
+            let rgb = get_pixel(source, x, y, options.size);
             rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always, with or without instruction
             if red_frame_found {
                 let bit_value = get_bit_from_rgb(&rgb);
@@ -191,14 +205,14 @@ fn frame_to_data_method_rgb(
 fn frame_to_data_method_bw(
     source: &VideoFrame,
     actual_size: Size,
-    info_size: u8,
+    options: &ExtractOptions,
     instruction: &mut Option<Instruction>,
     bytes_processes_count: u64,
     red_frame_found: bool,
 ) -> FrameBytesInfo {
     let width = actual_size.width;
     let height = actual_size.height;
-    let size = info_size as usize;
+    let size = options.size as usize;
     let mut result = FrameBytesInfo {
         bytes: Vec::new(),
         is_red_frame: false,
@@ -215,7 +229,7 @@ fn frame_to_data_method_bw(
 
     for y in (0..height).step_by(size) {
         for x in (0..width).step_by(size) {
-            let rgb = get_pixel(source, x, y, info_size);
+            let rgb = get_pixel(source, x, y, options.size);
             rgbs.push(vec![rgb[0], rgb[1], rgb[2]]); // Always, with or without instruction
             if red_frame_found {
                 let bit_value = get_bit_from_rgb(&rgb);
@@ -239,6 +253,12 @@ fn frame_to_data_method_bw(
                 }
                 if !has_already_instruction_from_past && instruction_bits_index == 63 {
                     *instruction = Some(instruction_data); // Send it back for subsequence frames to use
+                    if options.show_progress {
+                        println!(
+                            "Instruction found with data size of: {}",
+                            pretty_bytes(instruction_data.get_data_size() as u64, None),
+                        )
+                    }
                 }
             }
         }
@@ -312,7 +332,18 @@ pub fn data_to_files(extract_options: &ExtractOptions, whole_movie_data: Vec<u8>
 #[cfg(test)]
 mod extractionlogics_tests {
     use super::*;
-
+    fn get_unit_test_option(size: u8) -> ExtractOptions {
+        return ExtractOptions {
+            video_file_path: "".to_string(),
+            extracted_file_path: "".to_string(),
+            fps: 30,
+            width: 100,
+            height: 200,
+            size: size,
+            algo: AlgoFrame::RGB,
+            show_progress: false,
+        };
+    }
     #[test]
     fn test_frame_to_data_method_rgb_different_samerow() {
         let size = map_to_size(100, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
@@ -333,8 +364,14 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result =
-            frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        let result = frame_to_data_method_rgb(
+            &frame,
+            size,
+            &get_unit_test_option(1),
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
         assert_eq!(result.bytes.len(), 6);
         assert_eq!(result.bytes[0], 10);
         assert_eq!(result.bytes[1], 20);
@@ -369,8 +406,14 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result =
-            frame_to_data_method_rgb(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        let result = frame_to_data_method_rgb(
+            &frame,
+            size,
+            &get_unit_test_option(1),
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
         assert_eq!(result.bytes.len(), 6);
         assert_eq!(result.bytes[0], 10);
         assert_eq!(result.bytes[1], 20);
@@ -405,8 +448,14 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result =
-            frame_to_data_method_rgb(&frame, size, 2, &mut instruction_from_frame, 0, true);
+        let result = frame_to_data_method_rgb(
+            &frame,
+            size,
+            &get_unit_test_option(2),
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
         assert_eq!(result.bytes.len(), 6);
         assert_eq!(result.bytes[0], 10);
         assert_eq!(result.bytes[1], 20);
@@ -445,7 +494,14 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 0, true);
+        let result = frame_to_data_method_bw(
+            &frame,
+            size,
+            &get_unit_test_option(1),
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
         assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
         assert_eq!(result.bytes[0], write_data);
         assert_eq!(result.is_red_frame, false);
@@ -474,7 +530,14 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 2, &mut instruction_from_frame, 0, true);
+        let result = frame_to_data_method_bw(
+            &frame,
+            size,
+            &get_unit_test_option(2),
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
         assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
         assert_eq!(result.is_red_frame, false);
     }
@@ -535,7 +598,14 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
-        let result = frame_to_data_method_bw(&frame, size, 1, &mut instruction_from_frame, 1, true);
+        let result = frame_to_data_method_bw(
+            &frame,
+            size,
+            &get_unit_test_option(1),
+            &mut instruction_from_frame,
+            1,
+            true,
+        );
         assert_eq!(result.bytes.len(), 2); // The frame should have only the relevant byte #1 and #2
         assert_eq!(result.bytes[0], 59);
         assert_eq!(result.bytes[1], 251);

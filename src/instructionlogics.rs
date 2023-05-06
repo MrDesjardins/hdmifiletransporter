@@ -152,7 +152,6 @@ mod injectionlogics_tests {
         assert_eq!(byte_7, 162);
     }
 
-    
     #[test]
     #[should_panic]
     fn test_instruction_get_byte_outside_range() {
@@ -160,7 +159,6 @@ mod injectionlogics_tests {
         // 48 23 97 63 120 220 191 162
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
         instruction.get_byte(64); // Outside range
-
     }
 
     #[test]
@@ -191,5 +189,12 @@ mod injectionlogics_tests {
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
         let result = instruction.get_data_size();
         assert_eq!(result, 3465345363523452834)
+    }
+
+    #[test]
+    fn test_instruction_zero() {
+        let instruction = Instruction::new(0); // 000000000000000000000000000000000000000000000000000000... 000
+
+        assert_eq!(instruction.get_data_size(), 0);
     }
 }
