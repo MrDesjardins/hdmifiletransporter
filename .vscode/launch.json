@@ -133,19 +133,27 @@
       "request": "launch",
       "name": "Tool 'colorframe'",
       "cargo": {
-        "args": [
-          "build",
-          "--bin=colorframe",
-          "--package=hdmifiletransporter"
-        ],
+        "args": ["build", "--bin=colorframe", "--package=hdmifiletransporter"],
         "filter": {
           "name": "colorframe",
           "kind": "bin"
         }
       },
-      "args": [
-        
-      ],
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Tool 'diagonal'",
+      "cargo": {
+        "args": ["build", "--bin=diagonal", "--package=hdmifiletransporter"],
+        "filter": {
+          "name": "diagonal",
+          "kind": "bin"
+        }
+      },
+      "args": [],
       "cwd": "${workspaceFolder}"
     }
   ]

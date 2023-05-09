@@ -44,6 +44,10 @@ path = "src/bin/hdmifiletransporter.rs"
 name = "colorframe"
 path = "src/bin/colorframe.rs"
 
+[[bin]]
+name = "diagonal"
+path = "src/bin/diagonal.rs"
+
 [lib]
 name = "hdmifiletransporter"
 path = "src/lib.rs"
