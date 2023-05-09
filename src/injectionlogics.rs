@@ -253,9 +253,9 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
     //let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
     let fourcc = if options.algo == options::AlgoFrame::RGB {
         //VideoWriter::fourcc('p', 'n', 'g', ' ')
-        VideoWriter::fourcc('a', 'v', 'c', '1')
+        VideoWriter::fourcc('m', 'p', '4', 'v')
     } else {
-        VideoWriter::fourcc('a', 'v', 'c', '1')
+        VideoWriter::fourcc('m', 'p', '4', 'v')
     };
     let total_frames = frames.len() as u64;
     if options.show_progress {
