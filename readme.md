@@ -170,3 +170,9 @@ The generated video file must be ran at the same resolution as the one available
 ffmpeg -r 30 -f dshow -s 1920x1080 -vcodec mjpeg -i video="USB Video" -r 30 out.mp4
 ```
 
+# Other Bins
+There is another bin called `colorframe`. It creates a small video with colors that change around the edge for testing purposed of the capture card.
+
+```sh
+cargo run --bin=colorframe
+```

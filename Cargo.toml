@@ -1,5 +1,6 @@
 [package]
 name = "hdmifiletransporter"
+default-run = "hdmifiletransporter"
 description = "Proof of concept on transferring files using HDMI (video via HDMI) from one computer to another"
 version = "0.1.2"
 edition = "2021"
@@ -34,3 +35,15 @@ rustdocflags = ["--document-private-items"]
 
 [doc]
 browser = "chromium"  
+
+[[bin]]
+name = "hdmifiletransporter"
+path = "src/bin/hdmifiletransporter.rs"
+
+[[bin]]
+name = "colorframe"
+path = "src/bin/colorframe.rs"
+
+[lib]
+name = "hdmifiletransporter"
+path = "src/lib.rs"

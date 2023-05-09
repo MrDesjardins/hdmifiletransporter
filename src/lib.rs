@@ -69,6 +69,7 @@ use instructionlogics::Instruction;
 pub use crate::extractionlogics::{frames_to_data, video_to_frames};
 pub use crate::injectionlogics::{data_to_frames, frames_to_video};
 pub use crate::options::{extract_options, CliData, ExtractOptions, InjectOptions, VideoOptions};
+pub use crate::videoframe::VideoFrame;
 
 /// Execute video logics
 /// Two executions possible: inject a file into a video or extract it.

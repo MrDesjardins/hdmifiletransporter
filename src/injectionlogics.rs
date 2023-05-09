@@ -252,7 +252,8 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
     //let fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
     //let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1');
     let fourcc = if options.algo == options::AlgoFrame::RGB {
-        VideoWriter::fourcc('p', 'n', 'g', ' ')
+        //VideoWriter::fourcc('p', 'n', 'g', ' ')
+        VideoWriter::fourcc('a', 'v', 'c', '1')
     } else {
         VideoWriter::fourcc('a', 'v', 'c', '1')
     };
@@ -302,7 +303,7 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) {
             }
         }
         Err(error) => {
-            println!("{:?}", error)
+            println!("Error: {:?}", error)
         }
     }
 }
