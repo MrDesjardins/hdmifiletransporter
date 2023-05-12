@@ -79,7 +79,8 @@ impl VideoFrame {
     }
 
     /// Write at the beginning of the frame the instruction using the reserved space
-    /// 1 pixel per bit regardless if BW or RGB mode.
+    /// with the size pixel per bit regardless if BW or RGB mode. So, will be BW all
+    /// the time and will take 64 "spaces" (E.g. 64 pixels if size is 1)
     pub fn write_instruction(&mut self, instruction: &Instruction, size: u8) -> (u16, u16) {
         let mut instruction_index = 0;
         let mut x: u16 = 0;
@@ -99,6 +100,45 @@ impl VideoFrame {
             }
 
             y = i + size as u16;
+            x = 0; // Return to the beginning of the next line
+        }
+        if x == self.frame_size.width as u16 {
+            x = 0; // y is already increased
+        }
+        return (x, y);
+    }
+
+    /// Write a number at a specific location
+    /// In practice, the first page has instrution followed by the page number, then always at the top-left corner.
+    pub fn write_pagination(
+        &mut self,
+        x_start: u16,
+        y_start: u16,
+        pagination: &u64,
+        size: u8,
+    ) -> (u16, u16) {
+        let mut pagination_index = 0;
+        let mut x: u16 = x_start;
+        let mut y: u16 = y_start;
+        // We reuse the pagination object since we will store the page number into a 64 bits also
+        // This might is possible until more instructions are added then would need to move the logic
+        // outside the Instruction
+        let pagination_instruction = Instruction::new(*pagination);
+        'outer: while y < self.frame_size.height as u16 {
+            while x < self.frame_size.width as u16 {
+                if pagination_index < 64 {
+                    let (r, g, b) = get_rgb_for_bit(
+                        pagination_instruction.relevant_byte_count_in_64bits[pagination_index],
+                    );
+                    self.write(r, g, b, x, y, size);
+                    x += size as u16;
+                    pagination_index += 1;
+                } else {
+                    break 'outer;
+                }
+            }
+            y += size as u16;
+            x = 0; // Return to the beginning of the next line
         }
         if x == self.frame_size.width as u16 {
             x = 0; // y is already increased
@@ -181,5 +221,97 @@ mod videoframe_tests {
         assert_eq!(color.b, 255);
         assert_eq!(color.g, 255);
         assert_eq!(color.r, 255);
+    }
+
+    #[test]
+    fn test_write_image_pagination_with_instruction() {
+        let mut videoframe = VideoFrame::new(200, 100);
+        let mut instruction = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        instruction.relevant_byte_count_in_64bits[63] = true;
+
+        let (x, y) = videoframe.write_instruction(&instruction, 1);
+        videoframe.write_pagination(x, y, &1, 1);
+        let mut color: crate::injectionextraction::Color;
+        for i in 0..3 {
+            color = videoframe.read_coordinate_color(i, 0);
+            assert_eq!(color.b, 0);
+            assert_eq!(color.g, 0);
+            assert_eq!(color.r, 0);
+        }
+        color = videoframe.read_coordinate_color(63, 0); // The last bit of instruction is true
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+        color = videoframe.read_coordinate_color(64, 0); // The first bit of pagination
+        assert_eq!(color.b, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.r, 0);
+        color = videoframe.read_coordinate_color(126, 0); // The bit before last of pagination
+        assert_eq!(color.b, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.r, 0);
+        color = videoframe.read_coordinate_color(127, 0); // The last bit of pagination
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+    }
+
+    #[test]
+    fn test_write_image_pagination2_with_instruction() {
+        let mut videoframe = VideoFrame::new(200, 100);
+        let mut instruction = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        instruction.relevant_byte_count_in_64bits[63] = true;
+
+        let (x, y) = videoframe.write_instruction(&instruction, 1);
+        videoframe.write_pagination(x, y, &3, 1);
+        let mut color: crate::injectionextraction::Color;
+        for i in 0..3 {
+            color = videoframe.read_coordinate_color(i, 0);
+            assert_eq!(color.b, 0);
+            assert_eq!(color.g, 0);
+            assert_eq!(color.r, 0);
+        }
+        color = videoframe.read_coordinate_color(63, 0); // The last bit of instruction is true
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+        color = videoframe.read_coordinate_color(64, 0); // The first bit of pagination
+        assert_eq!(color.b, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.r, 0);
+        color = videoframe.read_coordinate_color(126, 0); // The bit before last of pagination
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+        color = videoframe.read_coordinate_color(127, 0); // The last bit of pagination
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+    }
+    #[test]
+    fn test_write_image_pagination_without_instruction() {
+        let mut videoframe = VideoFrame::new(200, 100);
+        let (x, _y) = videoframe.write_pagination(0, 0, &3, 1);
+        let mut color: crate::injectionextraction::Color;
+        for i in 0..61 {
+            color = videoframe.read_coordinate_color(i, 0);
+            assert_eq!(color.b, 0);
+            assert_eq!(color.g, 0);
+            assert_eq!(color.r, 0);
+        }
+        color = videoframe.read_coordinate_color(62, 0); // The bit before last of instruction is true
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+        color = videoframe.read_coordinate_color(63, 0); // The last bit of pagination
+        assert_eq!(color.b, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.r, 255);
+        // Check if the x moved
+        assert_eq!(x, 64) // (0..63) = Pagination, 64 is the next
     }
 }

@@ -342,6 +342,7 @@ mod extractionlogics_tests {
             size: size,
             algo: AlgoFrame::RGB,
             show_progress: false,
+            pagination: false,
         };
     }
     #[test]

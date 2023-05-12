@@ -119,6 +119,9 @@ pub struct CliData {
 
     #[arg(short = 'p', long)]
     pub show_progress: Option<bool>,
+
+    #[arg(short = 't', long)]
+    pub pagination: Option<bool>,
 }
 
 /// Extract from the command line (CLI) argument the option.
@@ -161,6 +164,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                         width: args.width.unwrap_or(3840),
                         algo: args.algo.unwrap_or(AlgoFrame::RGB),
                         show_progress: args.show_progress.unwrap_or(false),
+                        pagination: args.pagination.unwrap_or(false),
                     }
                 })
             }
@@ -178,6 +182,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     width: args.width.unwrap_or(3840),
                     algo: args.algo.unwrap_or(AlgoFrame::RGB),
                     show_progress: args.show_progress.unwrap_or(false),
+                    pagination: args.pagination.unwrap_or(false),
                 }
             }),
         },
@@ -195,7 +200,8 @@ pub struct InjectOptions {
     pub height: u16,
     pub size: u8,
     pub algo: AlgoFrame,
-    pub show_progress: bool
+    pub show_progress: bool,
+    pub pagination: bool,
 }
 
 #[derive(Clone)]
@@ -207,7 +213,8 @@ pub struct ExtractOptions {
     pub height: u16,
     pub size: u8,
     pub algo: AlgoFrame,
-    pub show_progress: bool
+    pub show_progress: bool,
+    pub pagination: bool,
 }
 
 #[derive(Clone)]
@@ -235,6 +242,7 @@ mod options_tests {
             width: None,
             algo: None,
             show_progress: None,
+            pagination: None,
         });
     }
     #[test]
@@ -250,6 +258,7 @@ mod options_tests {
             width: None,
             algo: None,
             show_progress: None,
+            pagination: None,
         });
     }
     #[test]
@@ -263,7 +272,8 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
-            show_progress: None
+            show_progress: None,
+            pagination: None,
         });
         let unwrapped_options = options.unwrap();
         if let InjectInVideo(op) = unwrapped_options {
@@ -274,6 +284,7 @@ mod options_tests {
             assert_eq!(op.output_video_file, "video.mp4");
             assert_eq!(op.algo, AlgoFrame::RGB);
             assert_eq!(op.show_progress, false);
+            assert_eq!(op.pagination, false);
         } else {
             assert!(true, "Failed to unwrapped inject options");
         }
@@ -290,6 +301,7 @@ mod options_tests {
             width: None,
             algo: None,
             show_progress: None,
+            pagination: None,
         });
         let unwrapped_options = options.unwrap();
         if let ExtractFromVideo(op) = unwrapped_options {
@@ -301,6 +313,7 @@ mod options_tests {
             assert_eq!(op.video_file_path, "video.mp4");
             assert_eq!(op.algo, AlgoFrame::RGB);
             assert_eq!(op.show_progress, false);
+            assert_eq!(op.pagination, false);
         } else {
             assert!(true, "Failed to unwrapped extract options");
         }

@@ -26,7 +26,8 @@ let options = VideoOptions::InjectInVideo({
         height: 1920,
         size: 1,
         algo: AlgoFrame::RGB,
-        show_progress: false
+        show_progress: false,
+        pagination: false
     }
 });
 execute_with_video_options(options);
@@ -47,7 +48,8 @@ let options = VideoOptions::ExtractFromVideo({
         height:1920,
         size: 1,
         algo: AlgoFrame::RGB,
-        show_progress: false
+        show_progress: false,
+        pagination: false
     }
 });
 execute_with_video_options(options);

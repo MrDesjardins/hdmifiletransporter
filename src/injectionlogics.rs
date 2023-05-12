@@ -89,6 +89,8 @@ fn data_to_frames_method_rgb(
     }
 
     let mut need_to_write_instruction = true;
+
+    let mut page_number = 0;
     while data_index < total_data {
         let mut x: u16 = 0;
         let mut y: u16 = 0;
@@ -103,6 +105,13 @@ fn data_to_frames_method_rgb(
             y = current_pos.1;
             need_to_write_instruction = false;
         }
+
+        if inject_options.pagination {
+            let current_pos = frame.write_pagination(x, y, &page_number, inject_options.size);
+            x = current_pos.0;
+            y = current_pos.1;
+        }
+
         while y < inject_options.height {
             while x < inject_options.width {
                 // Step 2: For each pixel of the frame, extract a byte of the vector
@@ -136,6 +145,7 @@ fn data_to_frames_method_rgb(
             pb.inc(1);
         }
         frames.push(frame);
+        page_number += 1;
     } // Loop until the frame is full or that there is no mode byte
     if inject_options.show_progress {
         pb.finish_with_message("done");
@@ -159,10 +169,17 @@ fn data_to_frames_method_bw(
         panic!("Instruction must fit in the first frame");
     }
 
-    let total_size = u32::from(inject_options.width) * u32::from(inject_options.height)
-        / u32::from(inject_options.size);
+    let total_size = i32::from(inject_options.width) / i32::from(inject_options.size)
+        * i32::from(inject_options.height)
+        / i32::from(inject_options.size);
+
     if total_size < 8 {
         panic!("The frame size must be at least big enough to accept a single character");
+    }
+
+    let number_char_in_frame: i32 = total_size / 8;
+    if number_char_in_frame != number_char_in_frame as u32 as i32 {
+        panic!("The frame size is not right and will cause byte to not be fully written. Change the height, width and size to be a full fraction of 8.");
     }
 
     let total_data = data.len();
@@ -184,6 +201,7 @@ fn data_to_frames_method_bw(
     let mut need_to_write_instruction = true;
     let vertical = inject_options.height - inject_options.size as u16;
     let horizontal = inject_options.width - inject_options.size as u16;
+    let mut page_number = 0;
     while data_index < total_data {
         let mut x: u16 = 0;
         let mut y: u16 = 0;
@@ -198,6 +216,13 @@ fn data_to_frames_method_bw(
             y = current_pos.1;
             need_to_write_instruction = false;
         }
+
+        if inject_options.pagination {
+            let current_pos = frame.write_pagination(x, y, &page_number, inject_options.size);
+            x = current_pos.0;
+            y = current_pos.1;
+        }
+
         while y <= vertical {
             while x <= horizontal {
                 // For each pixel of the frame, extract a bit of the active byte of the vector
@@ -230,6 +255,7 @@ fn data_to_frames_method_bw(
             pb.inc(1);
         }
         frames.push(frame);
+        page_number += 1;
     } // Loop until the frame is full or that there is no mode byte
     if inject_options.show_progress {
         pb.finish_with_message("done");
@@ -326,6 +352,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
+            pagination: false,
         };
         // Text: This is a test
         let frames = data_to_frames_method_rgb(
@@ -349,6 +376,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
+            pagination: false,
         };
         // Text: This is a test, 14 chars
         let frames = data_to_frames_method_rgb(
@@ -372,6 +400,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
+            pagination: false,
         };
         // Text: This
         let frames = data_to_frames_method_rgb(&options, vec![54, 68, 69, 73], instruction);
@@ -412,6 +441,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
+            pagination: false,
         };
         data_to_frames_method_rgb(&options, vec![54, 68, 69, 73], instruction);
     }
@@ -429,6 +459,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::RGB,
             show_progress: false,
+            pagination: false,
         };
         let result = create_starting_frame(inject_options);
         for x in 0..w {
@@ -453,6 +484,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
+            pagination: false,
         };
         // Text: This is a test, 14 chars = 14 bytes = 14*8bit =112 pixel
         // Instruction is 64 bits = 64 pixel
@@ -485,6 +517,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
+            pagination: false,
         };
         // Instruction is 64 bits = 64 pixel
         let frames = data_to_frames_method_bw(
@@ -573,6 +606,7 @@ mod injectionlogics_tests {
             size: 10,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
+            pagination: false,
         };
         // Text: This is a test, 14 chars = 14 bytes = 14*8bit =112 pixel
         // Instruction is 64 bits = 64 pixel
@@ -600,6 +634,7 @@ mod injectionlogics_tests {
             size: 2,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
+            pagination: false,
         };
         // Instruction is 64 bits = 64 pixel
         let frames = data_to_frames_method_bw(
@@ -744,39 +779,6 @@ mod injectionlogics_tests {
         assert_eq!(color.r, 0); // Instruction
         assert_eq!(color.g, 0); // Instruction
         assert_eq!(color.b, 0); // Instruction
-
-        // color = frame.read_coordinate_color(64, 0);
-        // assert_eq!(color.r, 0); // 54
-        // assert_eq!(color.g, 0); // 54
-        // assert_eq!(color.b, 0); // 54
-        // color = frame.read_coordinate_color(65, 0);
-        // assert_eq!(color.r, 0); // 54
-        // assert_eq!(color.g, 0); // 54
-        // assert_eq!(color.b, 0); // 54
-        // color = frame.read_coordinate_color(66, 0);
-        // assert_eq!(color.r, 255); // 54
-        // assert_eq!(color.g, 255); // 54
-        // assert_eq!(color.b, 255); // 54
-        // color = frame.read_coordinate_color(67, 0);
-        // assert_eq!(color.r, 255); // 54
-        // assert_eq!(color.g, 255); // 54
-        // assert_eq!(color.b, 255); // 54
-        // color = frame.read_coordinate_color(68, 0);
-        // assert_eq!(color.r, 0); // 54
-        // assert_eq!(color.g, 0); // 54
-        // assert_eq!(color.b, 0); // 54
-        // color = frame.read_coordinate_color(69, 0);
-        // assert_eq!(color.r, 255); // 54
-        // assert_eq!(color.g, 255); // 54
-        // assert_eq!(color.b, 255); // 54
-        // color = frame.read_coordinate_color(70, 0);
-        // assert_eq!(color.r, 255); // 54
-        // assert_eq!(color.g, 255); // 54
-        // assert_eq!(color.b, 255); // 54
-        // color = frame.read_coordinate_color(71, 0);
-        // assert_eq!(color.r, 0); // 54
-        // assert_eq!(color.g, 0); // 54
-        // assert_eq!(color.b, 0); // 54
     }
 
     #[test]
@@ -792,6 +794,7 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
+            pagination: false,
         };
         // Text: This
         // 84 104 105 115
@@ -904,12 +907,42 @@ mod injectionlogics_tests {
             size: 1,
             algo: crate::options::AlgoFrame::BW,
             show_progress: false,
+            pagination: false,
         };
         // Text: This is a test, 14 chars = 14 bytes = 14*8bit =112 pixel
         // Instruction is 64 bits = 64 pixel
         // Total pixel: 176
         // 1 frame is 8x48 pixel = 64
         // 176/64 = 3 frames
+        let frames = data_to_frames_method_bw(
+            &options,
+            vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
+            instruction,
+        );
+        assert_eq!(frames.len(), 3);
+    }
+
+    #[test]
+    fn test_data_to_frames_method_bw_pagination() {
+        let instruction = Instruction::new(112);
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 2,
+            width: 64,
+            size: 1,
+            algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
+            pagination: true,
+        };
+        // Text: This is a test, 14 chars = 14 bytes = 14*8bit = 112 pixel
+        // Size is 1
+        // Total pixel: 112 * (1x1) 176 total pixel
+        // 1 frame is 64X2 pixel = 128 pixels
+        // Frame 1: 64 (instruction) + 64 (pagination)
+        // Frame 2: 64 (pagination) + 64 first bit of the 112 bits of data
+        // Frame 3: 64 (pagination) + 48 last bit of the 112 bits of data
         let frames = data_to_frames_method_bw(
             &options,
             vec![54, 68, 69, 73, 20, 69, 73, 20, 61, 20, 74, 65, 73, 74],
