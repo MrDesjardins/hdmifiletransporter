@@ -159,6 +159,11 @@ fn frame_to_data_method_rgb(
         pagination: None,
     };
 
+    let mut pagination_data = instruction.unwrap_or_else(|| Instruction {
+        relevant_byte_count_in_64bits: [false; 64],
+    });
+    let mut pagination_bits_index = 0;
+
     let mut instruction_data = instruction.unwrap_or_else(|| Instruction {
         relevant_byte_count_in_64bits: [false; 64],
     });
@@ -178,27 +183,35 @@ fn frame_to_data_method_rgb(
                         bit_value;
                     instruction_bits_index += 1;
                 } else {
-                    let max = instruction_data.get_data_size();
-                    result.bytes.push(rgb[0]);
-                    if bytes_processes_count + result.bytes.len() as u64 >= max {
-                        return result; // The frame has reached a point that it has no more relevant information
-                    }
+                    if options.pagination && pagination_bits_index < 64 {
+                        pagination_data.relevant_byte_count_in_64bits[pagination_bits_index] =
+                            bit_value;
+                        pagination_bits_index += 1;
+                    } else {
+                        let max = instruction_data.get_data_size();
+                        result.bytes.push(rgb[0]);
+                        if bytes_processes_count + result.bytes.len() as u64 >= max {
+                            mutate_frame(&mut result, &rgbs, &pagination_data);
+                            return result; // The frame has reached a point that it has no more relevant information
+                        }
 
-                    result.bytes.push(rgb[1]);
-                    if bytes_processes_count + result.bytes.len() as u64 >= max {
-                        return result; // The frame has reached a point that it has no more relevant information
-                    }
+                        result.bytes.push(rgb[1]);
+                        if bytes_processes_count + result.bytes.len() as u64 >= max {
+                            mutate_frame(&mut result, &rgbs, &pagination_data);
+                            return result; // The frame has reached a point that it has no more relevant information
+                        }
 
-                    result.bytes.push(rgb[2]);
-                    if bytes_processes_count + result.bytes.len() as u64 >= max {
-                        return result; // The frame has reached a point that it has no more relevant information
+                        result.bytes.push(rgb[2]);
+                        if bytes_processes_count + result.bytes.len() as u64 >= max {
+                            mutate_frame(&mut result, &rgbs, &pagination_data);
+                            return result; // The frame has reached a point that it has no more relevant information
+                        }
                     }
                 }
             }
         }
     }
-    let is_red_frame = check_red_frame(&rgbs);
-    result.is_red_frame = is_red_frame;
+    mutate_frame(&mut result, &rgbs, &pagination_data);
     result
 }
 
@@ -687,7 +700,7 @@ mod extractionlogics_tests {
             relevant_byte_count_in_64bits: [false; 64],
         };
         instr.relevant_byte_count_in_64bits[63] = true;
-        frame.write_instruction(&instr, 1);
+        //frame.write_instruction(&instr, 1);
 
         // Write on the second row (first was instruction)
         let (x, _y) = frame.write_pagination(0, 0, &page_number, size);
@@ -715,6 +728,46 @@ mod extractionlogics_tests {
         assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
         assert_eq!(result.pagination.unwrap(), page_number); // Check if we can read back the page number
         assert_eq!(result.bytes[0], write_data); // Check if we can read the byte we wrote after the pagination
+        assert_eq!(result.is_red_frame, false);
+    }
+
+    #[test]
+    fn test_frame_to_data_method_rgb_pagination() {
+        let size = 1;
+        let page_number = 5;
+        let size_frame = map_to_size(64, 3);
+        let mut frame = VideoFrame::new(64, 3);
+        let data_size = 600;
+
+        // 9 relevant bytes (char)
+        let instruction = Instruction::new(data_size);
+
+        //frame.write_instruction(&instruction, 1); // Y=0
+
+        // Write on the second row (first was instruction)
+        let (_x, _y) = frame.write_pagination(0, 0, &page_number, size); // Y=1
+        for i in 0..64 {
+            frame.write(10, 20, 30, i, 1, size); // Y=1
+            frame.write(10, 20, 30, i, 2, size); // Y=2
+        }
+
+        // Act
+        let mut instruction_from_frame: Option<Instruction> = Some(instruction);
+        let mut options = get_unit_test_option(1);
+        options.pagination = true;
+        let result = frame_to_data_method_rgb(
+            &frame,
+            size_frame,
+            &options,
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
+        assert_eq!(result.bytes.len(), 384); // Loop 64 times 3 bytes = 192 x 2 rows = 
+        assert_eq!(result.pagination.unwrap(), page_number); // Check if we can read back the page number
+        assert_eq!(result.bytes[0], 10); // Check if we can read the byte we wrote after the pagination
+        assert_eq!(result.bytes[1], 20); // Check if we can read the byte we wrote after the pagination
+        assert_eq!(result.bytes[2], 30); // Check if we can read the byte we wrote after the pagination
         assert_eq!(result.is_red_frame, false);
     }
 }
