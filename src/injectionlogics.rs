@@ -950,4 +950,65 @@ mod injectionlogics_tests {
         );
         assert_eq!(frames.len(), 3);
     }
+
+    #[test]
+    fn test_data_to_frames_method_bw_many_pagination() {
+        let data_size = 40;
+        let instruction = Instruction::new(data_size);
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 4,
+            width: 40,
+            size: 1,
+            algo: crate::options::AlgoFrame::BW,
+            show_progress: false,
+            pagination: true,
+        };
+        let mut data = Vec::new();
+        for _i in 0..data_size {
+            data.push(80);
+        }
+        // Instruction = 64 pixel
+        // Pagination = 64 pixel
+        // Content of 40 bytes = 40 * 8 = 320 pixels
+        // Frame is 160 pixels
+        // Frame 1 = Instruction + Pagination (64+64) + 32 data
+        // Frame 2 = Pagination (64) + 96 data.
+        // Frame 2 = Pagination (64) + 96 data. // 224
+        // Frame 4 = Pagination (64) + 96 (Rest data).
+        let frames = data_to_frames_method_bw(&options, data, instruction);
+        assert_eq!(frames.len(), 4);
+    }
+
+    #[test]
+    fn test_data_to_frames_method_rgb_many_pagination() {
+        let data_size = 600;
+        let instruction = Instruction::new(data_size);
+        // Instruction = 64 pixel
+        // Pagination = 64 pixel
+        // Content of 200 bytes = 67 pixels
+        // Frame is 160 pixels
+        // Frame 1 = Instruction + Pagination (64+64) + 32 data
+        // Frame 2 = Pagination (64) + 96 data.
+        // Frame 3 = Pagination (64) + 72 (Rest data).
+        let options = InjectOptions {
+            file_path: "".to_string(),
+            output_video_file: "".to_string(),
+            fps: 30,
+            height: 4,
+            width: 40,
+            size: 1,
+            algo: crate::options::AlgoFrame::RGB,
+            show_progress: false,
+            pagination: true,
+        };
+        let mut data = Vec::new();
+        for _i in 0..data_size {
+            data.push(80);
+        }
+        let frames = data_to_frames_method_rgb(&options, data, instruction);
+        assert_eq!(frames.len(), 3)
+    }
 }

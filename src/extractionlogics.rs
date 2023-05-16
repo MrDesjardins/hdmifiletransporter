@@ -20,6 +20,7 @@ struct FrameBytesInfo {
     pub bytes: Vec<u8>,
     pub is_red_frame: bool,
     pub instruction: Option<Instruction>,
+    pub pagination: Option<u64>,
 }
 
 pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
@@ -93,8 +94,8 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             if extract_options.show_progress {
                 println!(
                     "Instruction found with data size of {}",
-                   // pretty_bytes(instruction.unwrap().get_data_size() as u64, None)
-                   instruction.unwrap().get_data_size()
+                    // pretty_bytes(instruction.unwrap().get_data_size() as u64, None)
+                    instruction.unwrap().get_data_size()
                 );
             }
         }
@@ -155,6 +156,7 @@ fn frame_to_data_method_rgb(
         bytes: Vec::new(),
         is_red_frame: false,
         instruction: None,
+        pagination: None,
     };
 
     let mut instruction_data = instruction.unwrap_or_else(|| Instruction {
@@ -195,7 +197,7 @@ fn frame_to_data_method_rgb(
             }
         }
     }
-    let is_red_frame = check_red_frame(rgbs);
+    let is_red_frame = check_red_frame(&rgbs);
     result.is_red_frame = is_red_frame;
     result
 }
@@ -213,10 +215,16 @@ fn frame_to_data_method_bw(
     let width = actual_size.width;
     let height = actual_size.height;
     let size = options.size as usize;
+    let mut pagination_data = instruction.unwrap_or_else(|| Instruction {
+        relevant_byte_count_in_64bits: [false; 64],
+    });
+    let mut pagination_bits_index = 0;
+
     let mut result = FrameBytesInfo {
         bytes: Vec::new(),
         is_red_frame: false,
         instruction: None,
+        pagination: None,
     };
     let mut bit_index: u8 = 7;
     let mut data: u8 = 0;
@@ -239,16 +247,25 @@ fn frame_to_data_method_bw(
                         bit_value;
                     instruction_bits_index += 1;
                 } else {
-                    mutate_byte(&mut data, bit_value, bit_index);
-                    bit_index = if bit_index == 0 { 7 } else { bit_index - 1 };
-                    let max = instruction_data.get_data_size();
-                    if (bytes_processes_count + result.bytes.len() as u64) <= max && bit_index == 7
-                    {
-                        result.bytes.push(data);
-                        data = 0; // Reset, next character needs to accumulate 8 bits
-                    }
-                    if bytes_processes_count + result.bytes.len() as u64 == max {
-                        return result; // The frame has reached a point that it has no more relevant information
+                    // We have not yet found the pagination data (if the option requires it)
+                    if options.pagination && pagination_bits_index < 64 {
+                        pagination_data.relevant_byte_count_in_64bits[pagination_bits_index] =
+                            bit_value;
+                        pagination_bits_index += 1;
+                    } else {
+                        mutate_byte(&mut data, bit_value, bit_index);
+                        bit_index = if bit_index == 0 { 7 } else { bit_index - 1 };
+                        let max = instruction_data.get_data_size();
+                        if (bytes_processes_count + result.bytes.len() as u64) <= max
+                            && bit_index == 7
+                        {
+                            result.bytes.push(data);
+                            data = 0; // Reset, next character needs to accumulate 8 bits
+                        }
+                        if bytes_processes_count + result.bytes.len() as u64 == max {
+                            mutate_frame(&mut result, &rgbs, &pagination_data);
+                            return result; // The frame has reached a point that it has no more relevant information
+                        }
                     }
                 }
                 if !has_already_instruction_from_past && instruction_bits_index == 63 {
@@ -263,14 +280,19 @@ fn frame_to_data_method_bw(
             }
         }
     }
-    let is_red_frame = check_red_frame(rgbs);
-    result.is_red_frame = is_red_frame;
+    mutate_frame(&mut result, &rgbs, &pagination_data);
     result
+}
+
+fn mutate_frame(frame: &mut FrameBytesInfo, rgbs: &Vec<Vec<u8>>, pagination_data: &Instruction) {
+    let is_red_frame = check_red_frame(rgbs);
+    frame.is_red_frame = is_red_frame;
+    frame.pagination = Some(pagination_data.get_data_size());
 }
 
 /// Check if the list of rgbs are all redish
 /// The list should be the content of a single frame
-pub fn check_red_frame(list_rgbs: Vec<Vec<u8>>) -> bool {
+pub fn check_red_frame(list_rgbs: &Vec<Vec<u8>>) -> bool {
     let mut counter = 0;
     for rgb in list_rgbs.iter() {
         // Red is 255, 0 ,0 but we give some room
@@ -617,7 +639,7 @@ mod extractionlogics_tests {
     fn text_check_red_frame_white() {
         let mut rgbs = Vec::new();
         rgbs.push(vec![0, 0, 0]);
-        let result = check_red_frame(rgbs);
+        let result = check_red_frame(&rgbs);
         assert_eq!(result, false)
     }
 
@@ -625,7 +647,7 @@ mod extractionlogics_tests {
     fn text_check_red_frame_black() {
         let mut rgbs = Vec::new();
         rgbs.push(vec![255, 255, 255]);
-        let result = check_red_frame(rgbs);
+        let result = check_red_frame(&rgbs);
         assert_eq!(result, false)
     }
 
@@ -633,7 +655,7 @@ mod extractionlogics_tests {
     fn text_check_red_frame_red() {
         let mut rgbs = Vec::new();
         rgbs.push(vec![255, 0, 0]);
-        let result = check_red_frame(rgbs);
+        let result = check_red_frame(&rgbs);
         assert_eq!(result, true)
     }
 
@@ -641,7 +663,7 @@ mod extractionlogics_tests {
     fn text_check_red_frame_almost_red() {
         let mut rgbs = Vec::new();
         rgbs.push(vec![245, 5, 10]);
-        let result = check_red_frame(rgbs);
+        let result = check_red_frame(&rgbs);
         assert_eq!(result, true)
     }
 
@@ -649,7 +671,50 @@ mod extractionlogics_tests {
     fn text_check_red_frame_too_far_from_red() {
         let mut rgbs = Vec::new();
         rgbs.push(vec![245, 45, 10]);
-        let result = check_red_frame(rgbs);
+        let result = check_red_frame(&rgbs);
         assert_eq!(result, false)
+    }
+
+    #[test]
+    fn test_frame_to_data_method_bw_pagination() {
+        let size = 1;
+        let page_number = 5;
+        let size_frame = map_to_size(64, 64);
+        let mut frame = VideoFrame::new(64, 64);
+        let write_data = 0b0011_1011; // The byte to write into a frame
+
+        let mut instr = Instruction {
+            relevant_byte_count_in_64bits: [false; 64],
+        };
+        instr.relevant_byte_count_in_64bits[63] = true;
+        frame.write_instruction(&instr, 1);
+
+        // Write on the second row (first was instruction)
+        let (x, _y) = frame.write_pagination(0, 0, &page_number, size);
+        frame.write(0, 0, 0, x, 1, 1); // White 0 bit
+        frame.write(0, 0, 0, x + 1, 1, 1); // White 0 bit
+        frame.write(255, 255, 255, x + 2, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, x + 3, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, x + 4, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 5, x + 1, 1); // White 0 bit
+        frame.write(255, 255, 255, x + 6, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, x + 7, 1, 1); // Black 1 bit
+
+        // Act
+        let mut instruction_from_frame: Option<Instruction> = Some(instr);
+        let mut options = get_unit_test_option(1);
+        options.pagination = true;
+        let result = frame_to_data_method_bw(
+            &frame,
+            size_frame,
+            &options,
+            &mut instruction_from_frame,
+            0,
+            true,
+        );
+        assert_eq!(result.bytes.len(), 1); // Only 1 byte found, even if the frame can have 8 bytes
+        assert_eq!(result.pagination.unwrap(), page_number); // Check if we can read back the page number
+        assert_eq!(result.bytes[0], write_data); // Check if we can read the byte we wrote after the pagination
+        assert_eq!(result.is_red_frame, false);
     }
 }
