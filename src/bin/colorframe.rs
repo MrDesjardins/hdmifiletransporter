@@ -82,8 +82,7 @@ fn main() {
             width: width,
             output_video_file: "outputs/color_video.mp4".to_string(),
             show_progress: true,
-            size: 1,
-            pagination: false
+            size: 1
         },
         frames,
     );

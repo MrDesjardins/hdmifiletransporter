@@ -183,7 +183,7 @@ fn frame_to_data_method_rgb(
                         bit_value;
                     instruction_bits_index += 1;
                 } else {
-                    if options.pagination && pagination_bits_index < 64 {
+                    if pagination_bits_index < 64 {
                         pagination_data.relevant_byte_count_in_64bits[pagination_bits_index] =
                             bit_value;
                         pagination_bits_index += 1;
@@ -261,7 +261,7 @@ fn frame_to_data_method_bw(
                     instruction_bits_index += 1;
                 } else {
                     // We have not yet found the pagination data (if the option requires it)
-                    if options.pagination && pagination_bits_index < 64 {
+                    if pagination_bits_index < 64 {
                         pagination_data.relevant_byte_count_in_64bits[pagination_bits_index] =
                             bit_value;
                         pagination_bits_index += 1;
@@ -377,12 +377,12 @@ mod extractionlogics_tests {
             size: size,
             algo: AlgoFrame::RGB,
             show_progress: false,
-            pagination: false,
         };
     }
     #[test]
     fn test_frame_to_data_method_rgb_different_samerow() {
-        let size = map_to_size(100, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
+        let size = 1;
+        let size_frame = map_to_size(100, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(100, 64);
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
@@ -391,19 +391,20 @@ mod extractionlogics_tests {
         instr.relevant_byte_count_in_64bits[61] = true;
         instr.relevant_byte_count_in_64bits[62] = true;
         instr.relevant_byte_count_in_64bits[63] = false;
-        frame.write_instruction(&instr, 1);
+        let (x, y) = frame.write_instruction(&instr, size);
+        let (x, y) = frame.write_pagination(x, y, &1, size);
 
         // Write 9 bytes
-        frame.write(10, 20, 30, 64, 0, 1);
-        frame.write(40, 50, 60, 65, 0, 1);
-        frame.write(70, 80, 90, 66, 0, 1); // Irrelevant, because instruction specify 6 not 9
+        frame.write(10, 20, 30, x, y, size);
+        frame.write(40, 50, 60, x + size as u16, y, size);
+        frame.write(70, 80, 90, x + size as u16 * 2, y, size); // Irrelevant, because instruction specify 6 not 9
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_rgb(
             &frame,
-            size,
-            &get_unit_test_option(1),
+            size_frame,
+            &get_unit_test_option(size),
             &mut instruction_from_frame,
             0,
             true,
@@ -424,7 +425,8 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_rgb_different_row() {
-        let size = map_to_size(64, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
+        let size = 1;
+        let size_frame = map_to_size(64, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(64, 64);
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
@@ -433,18 +435,19 @@ mod extractionlogics_tests {
         instr.relevant_byte_count_in_64bits[61] = true;
         instr.relevant_byte_count_in_64bits[62] = true;
         instr.relevant_byte_count_in_64bits[63] = false;
-        frame.write_instruction(&instr, 1);
+        let (x, y) = frame.write_instruction(&instr, size);
+        let (x, y) = frame.write_pagination(x, y, &1, size);
 
         // Write 9 bytes
-        frame.write(10, 20, 30, 0, 1, 1);
-        frame.write(40, 50, 60, 1, 1, 1);
-        frame.write(70, 80, 90, 2, 1, 1); // Irrelevant, because instruction specify 6 not 9
+        frame.write(10, 20, 30, x, y, size);
+        frame.write(40, 50, 60, x + size as u16, y, size);
+        frame.write(70, 80, 90, x + size as u16 * 2, y, size); // Irrelevant, because instruction specify 6 not 9
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_rgb(
             &frame,
-            size,
+            size_frame,
             &get_unit_test_option(1),
             &mut instruction_from_frame,
             0,
@@ -466,7 +469,8 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_rgb_size2() {
-        let size = map_to_size(128, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
+        let size = 2;
+        let size_frame = map_to_size(128, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(128, 64);
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
@@ -475,18 +479,19 @@ mod extractionlogics_tests {
         instr.relevant_byte_count_in_64bits[61] = true;
         instr.relevant_byte_count_in_64bits[62] = true;
         instr.relevant_byte_count_in_64bits[63] = false;
-        frame.write_instruction(&instr, 2);
+        let (x, y) = frame.write_instruction(&instr, size);
+        let (x, y) = frame.write_pagination(x, y, &1, size);
 
         // Write 9 bytes
-        frame.write(10, 20, 30, 0, 2, 2);
-        frame.write(40, 50, 60, 2, 2, 2);
-        frame.write(70, 80, 90, 4, 2, 2); // Irrelevant, because instruction specify 6 not 9
+        frame.write(10, 20, 30, x, y, size);
+        frame.write(40, 50, 60, x + size as u16, y, size);
+        frame.write(70, 80, 90, x + size as u16 * 2, y, size); // Irrelevant, because instruction specify 6 not 9
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_rgb(
             &frame,
-            size,
+            size_frame,
             &get_unit_test_option(2),
             &mut instruction_from_frame,
             0,
@@ -508,7 +513,8 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_bw() {
-        let size = map_to_size(64, 64);
+        let size = 1;
+        let size_frame = map_to_size(64, 64);
         let mut frame = VideoFrame::new(64, 64);
         let write_data = 0b0011_1011; // The byte to write into a frame
 
@@ -516,23 +522,24 @@ mod extractionlogics_tests {
             relevant_byte_count_in_64bits: [false; 64],
         };
         instr.relevant_byte_count_in_64bits[63] = true;
-        frame.write_instruction(&instr, 1);
+        let (x, y) = frame.write_instruction(&instr, size);
+        let (x, y) = frame.write_pagination(x, y, &1, size);
 
         // Write on the second row (first was instruction)
-        frame.write(0, 0, 0, 0, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 1, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 2, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 3, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 4, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 5, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 6, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 7, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, x, y, size); // White 0 bit
+        frame.write(0, 0, 0, x + 1, y, size); // White 0 bit
+        frame.write(255, 255, 255, x + 2, y, size); // Black 1 bit
+        frame.write(255, 255, 255, x + 3, y, size); // Black 1 bit
+        frame.write(255, 255, 255, x + 4, y, size); // Black 1 bit
+        frame.write(0, 0, 0, x + 5, y, size); // White 0 bit
+        frame.write(255, 255, 255, x + 6, y, size); // Black 1 bit
+        frame.write(255, 255, 255, x + 7, y, size); // Black 1 bit
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_bw(
             &frame,
-            size,
+            size_frame,
             &get_unit_test_option(1),
             &mut instruction_from_frame,
             0,
@@ -545,30 +552,32 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_bw_size2() {
-        let size = map_to_size(128, 64);
+        let size = 2;
+        let size_frame = map_to_size(128, 64);
         let mut frame = VideoFrame::new(128, 64);
 
         let mut instr = Instruction {
             relevant_byte_count_in_64bits: [false; 64],
         };
         instr.relevant_byte_count_in_64bits[63] = true; // 1 byte
-        frame.write_instruction(&instr, 2);
+        let (x, y) = frame.write_instruction(&instr, size);
+        let (x, y) = frame.write_pagination(x, y, &1, size);
 
         // Write on the second row (first was instruction)
-        frame.write(0, 0, 0, 0, 2, 2); // White 0 bit
-        frame.write(0, 0, 0, 2, 2, 2); // White 0 bit
-        frame.write(255, 255, 255, 4, 2, 2); // Black 1 bit
-        frame.write(255, 255, 255, 6, 2, 2); // Black 1 bit
-        frame.write(255, 255, 255, 8, 2, 2); // Black 1 bit
-        frame.write(0, 0, 0, 10, 2, 2); // White 0 bit
-        frame.write(255, 255, 255, 12, 2, 2); // Black 1 bit
-        frame.write(255, 255, 255, 14, 2, 2); // Black 1 bit
+        frame.write(0, 0, 0, x, y, size); // White 0 bit
+        frame.write(0, 0, 0, x + 2, y, size); // White 0 bit
+        frame.write(255, 255, 255, x + 4, y, size); // Black 1 bit
+        frame.write(255, 255, 255, x + 6, y, size); // Black 1 bit
+        frame.write(255, 255, 255, x + 8, y, size); // Black 1 bit
+        frame.write(0, 0, 0, x + 10, y, size); // White 0 bit
+        frame.write(255, 255, 255, x + 12, y, size); // Black 1 bit
+        frame.write(255, 255, 255, x + 14, y, size); // Black 1 bit
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_bw(
             &frame,
-            size,
+            size_frame,
             &get_unit_test_option(2),
             &mut instruction_from_frame,
             0,
@@ -580,7 +589,8 @@ mod extractionlogics_tests {
 
     #[test]
     fn test_frame_to_data_method_bw_with_processesbytes() {
-        let size = map_to_size(64, 64);
+        let size = 1;
+        let size_frame = map_to_size(64, 64);
         let mut frame = VideoFrame::new(64, 64);
 
         let mut instr = Instruction {
@@ -589,54 +599,55 @@ mod extractionlogics_tests {
         // Change to 0000011 = 3 to have 3 bytes
         instr.relevant_byte_count_in_64bits[62] = true;
         instr.relevant_byte_count_in_64bits[63] = true;
-        frame.write_instruction(&instr, 1);
+        let (x, y) = frame.write_instruction(&instr, size);
+        let (_x, y) = frame.write_pagination(x, y, &1, size);
 
         // Write on the second row (first was instruction since 64 bits)
         // First relevant byte (value 59)
-        frame.write(0, 0, 0, 0, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 1, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 2, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 3, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 4, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 5, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 6, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 7, 1, 1); // Black 1 bit
+        frame.write(0, 0, 0, 0, y, size); // White 0 bit
+        frame.write(0, 0, 0, 1, y, size); // White 0 bit
+        frame.write(255, 255, 255, 2, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 3, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 4, y, size); // Black 1 bit
+        frame.write(0, 0, 0, 5, y, size); // White 0 bit
+        frame.write(255, 255, 255, 6, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 7, y, size); // Black 1 bit
 
         // Second relevant byte (value 251)
-        frame.write(255, 255, 255, 8, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 9, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 10, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 11, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 12, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 5, 13, 1); // White 0 bit
-        frame.write(255, 255, 255, 14, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 15, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 8, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 9, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 10, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 11, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 12, y, size); // Black 1 bit
+        frame.write(0, 0, 0, 5, y, size); // White 0 bit
+        frame.write(255, 255, 255, 14, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 15, y, size); // Black 1 bit
 
         // Third irrelevant byte (value 153)
-        frame.write(255, 255, 255, 16, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 17, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 18, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 19, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 20, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 21, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 22, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 23, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 16, y, size); // Black 1 bit
+        frame.write(0, 0, 0, 17, y, size); // White 0 bit
+        frame.write(0, 0, 0, 18, y, size); // White 0 bit
+        frame.write(255, 255, 255, 19, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 20, y, size); // Black 1 bit
+        frame.write(0, 0, 0, 21, y, size); // White 0 bit
+        frame.write(0, 0, 0, 22, y, size); // White 0 bit
+        frame.write(255, 255, 255, 23, y, size); // Black 1 bit
 
         // Forth irrelevant byte (value 153)
-        frame.write(255, 255, 255, 24, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 25, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 26, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 27, 1, 1); // Black 1 bit
-        frame.write(255, 255, 255, 28, 1, 1); // Black 1 bit
-        frame.write(0, 0, 0, 29, 1, 1); // White 0 bit
-        frame.write(0, 0, 0, 30, 1, 1); // White 0 bit
-        frame.write(255, 255, 255, 31, 1, 1); // Black 1 bit
+        frame.write(255, 255, 255, 24, y, size); // Black 1 bit
+        frame.write(0, 0, 0, 25, y, size); // White 0 bit
+        frame.write(0, 0, 0, 26, y, size); // White 0 bit
+        frame.write(255, 255, 255, 27, y, size); // Black 1 bit
+        frame.write(255, 255, 255, 28, y, size); // Black 1 bit
+        frame.write(0, 0, 0, 29, y, size); // White 0 bit
+        frame.write(0, 0, 0, 30, y, size); // White 0 bit
+        frame.write(255, 255, 255, 31, y, size); // Black 1 bit
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = None;
         let result = frame_to_data_method_bw(
             &frame,
-            size,
+            size_frame,
             &get_unit_test_option(1),
             &mut instruction_from_frame,
             1,
@@ -715,8 +726,7 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = Some(instr);
-        let mut options = get_unit_test_option(1);
-        options.pagination = true;
+        let options = get_unit_test_option(1);
         let result = frame_to_data_method_bw(
             &frame,
             size_frame,
@@ -753,8 +763,7 @@ mod extractionlogics_tests {
 
         // Act
         let mut instruction_from_frame: Option<Instruction> = Some(instruction);
-        let mut options = get_unit_test_option(1);
-        options.pagination = true;
+        let options = get_unit_test_option(1);
         let result = frame_to_data_method_rgb(
             &frame,
             size_frame,
@@ -763,7 +772,7 @@ mod extractionlogics_tests {
             0,
             true,
         );
-        assert_eq!(result.bytes.len(), 384); // Loop 64 times 3 bytes = 192 x 2 rows = 
+        assert_eq!(result.bytes.len(), 384); // Loop 64 times 3 bytes = 192 x 2 rows =
         assert_eq!(result.pagination.unwrap(), page_number); // Check if we can read back the page number
         assert_eq!(result.bytes[0], 10); // Check if we can read the byte we wrote after the pagination
         assert_eq!(result.bytes[1], 20); // Check if we can read the byte we wrote after the pagination
