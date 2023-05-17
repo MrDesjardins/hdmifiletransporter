@@ -54,11 +54,12 @@ pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
 /// Take the pixels from a collection of frames into a collection of byte
 /// The byte values are from the RGB of the pixels
 pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>) -> Vec<u8> {
+    let frame_count = frames.len() as usize;
+    let mut all_frames_bytes: Vec<Vec<u8>> = vec![Vec::new(); frame_count]; // One index per frame, index contains the bytes of the frame
     let mut byte_data = Vec::new();
     let actual_size = map_to_size(extract_options.width, extract_options.height);
     let mut is_red_frame_found = false;
     let mut relevant_frame_count = 0;
-    let mut previous_frame_checksum = 0;
     let total_expected_frame = frames.len() as u64;
     let pb = ProgressBar::new(total_expected_frame);
     let mut instruction: Option<Instruction> = None;
@@ -101,21 +102,15 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
         }
 
         if is_red_frame_found && !frame_data.is_red_frame {
-            let current_frame_checksum = crc32fast::hash(frame_data.bytes.as_slice());
-            if current_frame_checksum != previous_frame_checksum {
+            let page_number = frame_data.pagination.unwrap() as usize;
+            if all_frames_bytes[page_number].len() == 0 {
                 if extract_options.show_progress {
                     pb.inc(1);
                 }
-                byte_data.extend(frame_data.bytes); // Between two red frames, we accumulate
+                //byte_data.extend(frame_data.bytes); // Between two red frames, we accumulate
+                all_frames_bytes[page_number] = frame_data.bytes;
                 relevant_frame_count += 1;
-                previous_frame_checksum = current_frame_checksum;
             }
-        } else if is_red_frame_found && frame_data.is_red_frame && byte_data.len() > 0 {
-            // Check length in case there is two or more red frame next to each other
-            if extract_options.show_progress {
-                println!("Relevant Frames count: {}", relevant_frame_count);
-            }
-            return byte_data; // We have all our frames
         } else if !is_red_frame_found && frame_data.is_red_frame {
             is_red_frame_found = true; // From that point, we start accumulating byte
             if extract_options.show_progress {
@@ -131,6 +126,11 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
             "Relevant Frames count: {}/{} ({:.3})",
             relevant_frame_count, total_expected_frame, p
         );
+    }
+
+    // Merge all frames in orders
+    for one_frame_bytes in all_frames_bytes.iter() {
+        byte_data.extend(one_frame_bytes); // Between two red frames, we accumulate
     }
     byte_data
 }

@@ -175,4 +175,5 @@ There is another bin called `colorframe`. It creates a small video with colors t
 
 ```sh
 cargo run --bin=colorframe
+cargo run --bin=diagonal
 ```

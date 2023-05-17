@@ -21,7 +21,6 @@ pub fn file_to_data(options: &InjectOptions) -> Vec<u8> {
     })
 }
 use indicatif::ProgressBar;
-use pretty_bytes_rust::pretty_bytes;
 
 /// Create a starting frame to indicate that we are starting the transmission of the data
 ///
@@ -73,18 +72,19 @@ fn data_to_frames_method_rgb(
     }
 
     let total_data = data.len();
-    let total_bytes: f64 = total_data as f64 + 64_f64; // Instruction
-    let total_expected_frame = (total_bytes
-        / (f64::from(inject_options.width) * f64::from(inject_options.height)
-            / f64::from(inject_options.size * inject_options.size)
-            / 8.0))
-        .ceil();
+    let total_expected_frame = (((total_data as f64 / 3.0).ceil() + 64_f64) // 3 because 3 data per pixel (RGB) Instruction 
+        / ((f64::from(inject_options.width) * f64::from(inject_options.height) - 64_f64) // Size of the frame - the pagination size on each frame
+            / f64::from(inject_options.size)
+            / f64::from(inject_options.size)))
+    .ceil();
+
+    let total_pixel =
+        total_expected_frame * f64::from(inject_options.width) * f64::from(inject_options.height);
     let pb = ProgressBar::new(total_expected_frame as u64);
     if inject_options.show_progress {
         println!(
-            "Inserting {} into {} frames",
-            pretty_bytes(total_bytes as u64, None),
-            total_expected_frame
+            "Inserting {} pixels into {} frames",
+            total_pixel, total_expected_frame
         );
     }
 
@@ -181,18 +181,19 @@ fn data_to_frames_method_bw(
     }
 
     let total_data = data.len();
-    let total_bytes = total_data as f64 + 64_f64; // Instruction
-    let total_expected_frame = (total_bytes * 8.0
-        / (f64::from(inject_options.width) * f64::from(inject_options.height)
+    let total_expected_frame = ((total_data as f64 * 8.0 + 64_f64) // Instruction 
+        / ((f64::from(inject_options.width) * f64::from(inject_options.height) - 64_f64) // Size of the frame - the pagination size on each frame
             / f64::from(inject_options.size)
             / f64::from(inject_options.size)))
     .ceil();
+    let total_pixel =
+        total_expected_frame * f64::from(inject_options.width) * f64::from(inject_options.height);
+
     let pb = ProgressBar::new(total_expected_frame as u64);
     if inject_options.show_progress {
         println!(
-            "Inserting {} into {} frames",
-            pretty_bytes(total_bytes as u64, None),
-            total_expected_frame
+            "Inserting {} pixels into {} frames",
+            total_pixel, total_expected_frame
         );
     }
 
@@ -385,7 +386,7 @@ mod injectionlogics_tests {
     #[test]
     fn test_data_to_frames_method_rgb_short_message_remaining_color_instruction() {
         let instruction = Instruction::new(3465345363523452834); // 00110000 00010111 01100001 00111111 01111000 11011100 10111111 10100010
-        // 8x8 = 64 with 3 colors = 12 chars, thus < 14 => 2 frames
+                                                                 // 8x8 = 64 with 3 colors = 12 chars, thus < 14 => 2 frames
         let options = InjectOptions {
             file_path: "".to_string(),
             output_video_file: "".to_string(),
@@ -411,10 +412,10 @@ mod injectionlogics_tests {
         assert_eq!(color.r, 255); // Instruction
         assert_eq!(color.g, 255); // Instruction
         assert_eq!(color.b, 255); // Instruction
-        // Instruction is 64 pixels
-        // Then, pagination is 64 pixels
-        // Content starts at pixel 128 which is the first pixel of the second frame.
-        // The second frame has pagination of 64 pixels as well
+                                  // Instruction is 64 pixels
+                                  // Then, pagination is 64 pixels
+                                  // Content starts at pixel 128 which is the first pixel of the second frame.
+                                  // The second frame has pagination of 64 pixels as well
         let second_frame = &frames[1];
         let color = second_frame.read_coordinate_color(0, 8);
         assert_eq!(color.r, 54); // 1st content
