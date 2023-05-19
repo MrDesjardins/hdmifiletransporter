@@ -21,6 +21,34 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Single Unit test Selected",
+      "cargo": {
+        "args": ["test", "--no-run"],
+        "filter": {
+          "name": "hdmifiletransporter",
+          "kind": "lib"
+        }
+      },
+      "args": ["${selectedText}"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Single Unit test Hardcoded",
+      "cargo": {
+        "args": ["test", "--no-run"],
+        "filter": {
+          "name": "hdmifiletransporter",
+          "kind": "lib"
+        }
+      },
+      "args": ["test_data_to_frames_method_bw_many_pagination"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Inject 'hdmifiletransporter'",
       "cargo": {
         "args": [

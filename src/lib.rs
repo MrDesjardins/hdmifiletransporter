@@ -77,9 +77,9 @@ pub fn execute_with_video_options(options: VideoOptions) {
     match options {
         VideoOptions::InjectInVideo(n) => {
             let data = file_to_data(&n);
-            let starting_frame = create_starting_frame(&n);
             let instruction_data = Instruction::new(data.len() as u64);
-            let frames = data_to_frames(&n, data, instruction_data);
+            let starting_frame = create_starting_frame(&instruction_data, &n);
+            let frames = data_to_frames(&n, data);
             let mut merged_frames = vec![starting_frame];
             merged_frames.extend(frames);
             frames_to_video(n, merged_frames);
