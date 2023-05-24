@@ -109,8 +109,6 @@ impl VideoFrame {
     }
 
     /// Write a number at a specific location
-    /// In practice, the first page has instrution followed by the page number, then always at the top-left corner.
-    /// The result is the next available writing position after writing the pagination
     pub fn write_pagination(
         &mut self,
         x_start: u16,

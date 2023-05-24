@@ -43,7 +43,7 @@
           "kind": "lib"
         }
       },
-      "args": ["test_data_to_frames_method_bw_many_pagination"],
+      "args": ["test_frame_to_data_method_bw_pagination"],
       "cwd": "${workspaceFolder}"
     },
     {
