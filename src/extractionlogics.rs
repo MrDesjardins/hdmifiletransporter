@@ -312,18 +312,12 @@ mod extractionlogics_tests {
             show_progress: false,
         };
     }
+
     #[test]
     fn test_frame_to_data_method_rgb_different_samerow() {
         let size = 1;
         let size_frame = map_to_size(100, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(100, 64);
-        let mut instr = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        // 0000...00000110 = Tell that we want 6 relevant bytes
-        instr.relevant_byte_count_in_64bits[61] = true;
-        instr.relevant_byte_count_in_64bits[62] = true;
-        instr.relevant_byte_count_in_64bits[63] = false;
         let (x, y) = frame.write_pagination(0, 0, &1, size);
 
         // Write 9 bytes
@@ -355,15 +349,8 @@ mod extractionlogics_tests {
         let size = 1;
         let size_frame = map_to_size(64, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(64, 64);
-        let mut instr = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        // 0000...00000110 = Tell that we want 6 relevant bytes
-        instr.relevant_byte_count_in_64bits[61] = true;
-        instr.relevant_byte_count_in_64bits[62] = true;
-        instr.relevant_byte_count_in_64bits[63] = false;
-        let (x, y) = frame.write_pagination(0, 0, &1, size);
 
+        let (x, y) = frame.write_pagination(0, 0, &1, size);
         // Write 9 bytes
         frame.write(10, 20, 30, x, y, size);
         frame.write(40, 50, 60, x + size as u16, y, size);
@@ -390,13 +377,6 @@ mod extractionlogics_tests {
         let size = 2;
         let size_frame = map_to_size(64, 64); // 64 pixels for instruction (64 bits) and 3 pixels of data (9 values) =  2 irrelevantS pixel on the first row
         let mut frame = VideoFrame::new(64, 64);
-        let mut instr = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        // 0000...00000110 = Tell that we want 6 relevant bytes
-        instr.relevant_byte_count_in_64bits[61] = true;
-        instr.relevant_byte_count_in_64bits[62] = true;
-        instr.relevant_byte_count_in_64bits[63] = false;
         let (x, y) = frame.write_pagination(0, 0, &1, size);
 
         // Write 9 bytes
@@ -429,11 +409,6 @@ mod extractionlogics_tests {
         let size_frame = map_to_size(64, 64);
         let mut frame = VideoFrame::new(64, 64);
         let write_data = 0b0011_1011; // The byte to write into a frame
-
-        let mut instr = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        instr.relevant_byte_count_in_64bits[63] = true;
 
         let (x, y) = frame.write_pagination(0, 0, &1, 1);
         frame.write(0, 0, 0, x, y, 1); // White 0 bit
@@ -477,13 +452,6 @@ mod extractionlogics_tests {
         let size = 1;
         let size_frame = map_to_size(64, 64);
         let mut frame = VideoFrame::new(64, 64);
-
-        let mut instr = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        // Change to 0000011 = 3 to have 3 bytes
-        instr.relevant_byte_count_in_64bits[62] = true;
-        instr.relevant_byte_count_in_64bits[63] = true;
         let (_x, y) = frame.write_pagination(0, 0, &1, size);
 
         // Write on the second row (first was instruction since 64 bits)
@@ -648,4 +616,5 @@ mod extractionlogics_tests {
         assert_eq!(result.bytes[2], 30); // Check if we can read the byte we wrote after the pagination
         assert_eq!(result.is_red_frame, false);
     }
+
 }

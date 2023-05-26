@@ -62,14 +62,14 @@ pub mod options;
 mod videoframe;
 
 use extractionlogics::data_to_files;
-use injectionlogics::{create_starting_frame, file_to_data};
-use instructionlogics::Instruction;
+use injectionlogics::file_to_data;
 
 // Re-export for external access (main.rs)
 pub use crate::extractionlogics::{frames_to_data, video_to_frames};
-pub use crate::injectionlogics::{data_to_frames, frames_to_video};
+pub use crate::injectionlogics::{create_starting_frame, data_to_frames, frames_to_video};
 pub use crate::options::{extract_options, CliData, ExtractOptions, InjectOptions, VideoOptions};
 pub use crate::videoframe::VideoFrame;
+pub use crate::instructionlogics::Instruction;
 
 /// Execute video logics
 /// Two executions possible: inject a file into a video or extract it.

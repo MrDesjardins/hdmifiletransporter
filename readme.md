@@ -83,8 +83,16 @@ cargo run -- -help
 
 ## Tests
 
+All tests:
+
 ```sh
 cargo test
+```
+
+Only integration tests:
+
+```sh
+cargo test --test "*"
 ```
 
 ## Tests Coverage
