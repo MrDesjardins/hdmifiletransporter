@@ -12,10 +12,13 @@ This repository is a Rust implementation for a proof-of-concept to transfer file
 
 For details about the concept and code visit these articles:
 
-1. [How to Transfer Files Between Computer Using HDMI (Part 1: Plan)]()
-1.
-1.
-1.
+1. [How to Transfer Files Between Computer Using HDMI (Part 1: Plan)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-1-Plan)
+1. [How to Transfer Files Between Computers Using HDMI (Part 2: Prototype Code Video Creation)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-2-prototype-code-video)
+1. [How to Transfer Files Between Computers Using HDMI (Part 3: Reading Video)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-3-reading-video)
+1. [How to Transfer Files Between Computers Using HDMI (Part 4: HDMI Failure)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-4-hdmi-failure)
+1. [How to Transfer Files Between Computers Using HDMI (Part 5: Instruction Header)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-5-instruction-header)
+1. [How to Transfer Files Between Computers Using HDMI (Part 6: Instruction and Black and White)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-6-instruction-black-white)
+1. [How to Transfer Files Between Computers Using HDMI (Part 7: Pagination)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-7-pagination)
 
 # Scope of this Code Base
 
