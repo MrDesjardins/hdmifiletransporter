@@ -1,0 +1,165 @@
+---
+title: "How to Transfer Files Between Computers Using HDMI (Part 8: Registration, CRC, and a Working Transfer)"
+date: "2026-06-05"
+categories:
+ - "rust"
+ - "hdmi"
+ - "video"
+ - "encoding"
+ - "steganography"
+---
+
+Part 7 ended on a frustrating note. Pagination was supposed to fix missing frames, but the real capture path still failed. I could loop the video twelve times, record 850 megs of footage, and still be short six frames. The decoder would report something like:
+
+> We have not receive all frames. We received 6 frames for a total of 1555152 bytes and we expected 54347552 bytes
+
+That was almost three years ago. The repository sat there. CI was red. The code did not compile cleanly on a modern Rust toolchain. I had a proof of concept that worked locally and a pile of lessons from HDMI that never turned into a reliable pipeline.
+
+A few days ago I sat down with Cursor and asked it to fix the old code. What came out of the last 24 hours is not a small patch. It is a rethink of the frame format, a benchmark harness that simulates what a capture card actually does to your pixels, and the first byte-identical transfer I have ever completed over a real HDMI cable.
+
+# What Was Still Broken
+
+Pagination solved one problem (out-of-order frames) but left several others untouched.
+
+**The captured frame is not the frame you drew.** When the transmitter renders a 1920x1080 grid of cells and the receiver records it through a USB capture card, the image comes back offset, slightly scaled, sometimes overscanned, and always re-compressed. MJPEG is the norm. The decoder was still assuming pixel (0,0) on the capture lined up with pixel (0,0) in the encoded video. It did not.
+
+**Red-frame detection was a weak anchor.** Part 6 moved the instruction into the red start frame. That helped, but over HDMI the red fill itself gets crushed toward black or grey. Relying on colour to find the start frame was fragile. Worse, a torn or duplicated transition frame could poison the byte stream with no way to detect it.
+
+**Dense colour encodings die in chroma.** RGB mode packs three bytes per cell. Capture cards subsample colour (4:2:0). Neighbouring cells bleed into each other. A single wrong symbol fails the whole frame because we had no per-frame integrity check. Black and white survived better, but even BW needed geometry correction before the bits could be read reliably.
+
+**The toolchain around the transfer was fighting us.** OpenCV could not open the MJPEG files ffmpeg recorded from the capture card. Trying `ffmpeg_next` in Rust ate thirty minutes of compile time and still failed. Running `ffmpeg -f dshow` inside WSL simply does not work (`Unknown input format: dshow`). Encoding to FFV1 live during capture overflowed the real-time buffer and dropped frames. Matching inject at 60 fps when the card only delivers ~30 fps produced duplicate and missing pages no amount of looping could fix.
+
+I had been treating this as a decoding bug. It was really a registration, integrity, and workflow problem.
+
+# First Experiment: Modernize and Measure
+
+The first pass was blunt: make the project build again, fix the integration tests, and write down what we already suspected.
+
+That produced `docs/findings.md` and a new `benchmark` binary. The benchmark does not just time encode/decode. It runs each frame through a simulated capture pipeline: padding (overscan), anisotropic resize, contrast/brightness remap, Gaussian noise, and a JPEG round-trip with chroma loss. Four profiles (`Clean`, `Mild`, `Harsh`, `Brutal`) let us ask a concrete question before touching hardware: does this encoding survive what a cheap HDMI capture card does to the image?
+
+The answer for raw RGB was depressing. At the `Harsh` profile, per-symbol accuracy for 256 levels collapses to about 4%. The CRC model (more on that below) needs roughly one error in a million symbols for a whole frame to pass. RGB never had a chance.
+
+Black and white at `size >= 4` survived all the way to `Brutal`. That confirmed the direction from Parts 4 through 7, but BW alone is slow. I wanted density without giving up the HDMI path.
+
+# Second Experiment: A New Frame Format
+
+The big structural change is what you now see in every injected frame.
+
+**Calibration ring.** A white quiet-zone border wraps the payload. Three QR-style concentric-square finder patterns sit in the top-left, top-right, and bottom-left corners. On extraction the decoder locates all three, computes an affine transform from their centres to canonical positions, and warps the captured frame back to exact `width x height`. Orientation is fixed by the asymmetry (only three corners). If a frame is too torn to register, it is skipped and picked up on the next loop.
+
+**Per-frame header with CRC32.** Just inside the ring, 128 black/white cells carry a format magic (`0xA5`), a frame type (`Start` or `Data`), a 64-bit value (total byte count for `Start`, page number for `Data`), and a CRC32 over type, value, and payload. The header is always black/white regardless of payload algorithm, so metadata stays on the robust channel. On extraction the CRC is recomputed. Any mismatch drops the frame. Torn transition frames can no longer corrupt the output.
+
+**Lossless container for inject.** The transmitter now writes FFV1 inside an `.mkv` file. A lossy `.mp4` container would corrupt the embedded bytes before HDMI even enters the picture.
+
+The red fill remains, but only as a human visual cue. The decoder identifies the `Start` frame from its validated header type, not from how red the pixels look after MJPEG.
+
+This is a breaking change. Videos produced by older versions of the tool cannot be extracted with the new decoder. Re-encode with the current release first.
+
+# Third Experiment: More Encoding Modes
+
+With registration and CRC in place, I added two tunable modes between raw RGB and pure black/white.
+
+**`quantized`** rounds each colour channel to `N` evenly spaced levels (a power of two). At `--levels 2` you get three bits per cell (one per channel) with maximum separation between symbols, similar to BW-grade spacing. At `--levels 256` you are back to raw RGB density and fragility.
+
+**`brightness`** puts the data in greyscale only (`R = G = B`). Same level count, but the symbols ride on luminance, which capture cards preserve at full resolution. Chroma subsampling was the killer for colour modes. The benchmark shows it clearly: at `Harsh`, 8 levels in colour gives 0% whole-frame survival and ~20% byte error; 8 levels in brightness at `size 8` gives 100% survival and 0% byte error.
+
+The recommended fast preset from the benchmark: `--algo quantized --levels 2 --size 6` at 1920x1080. Three bits per cell, byte-exact through the `Harsh` simulation in a single pass.
+
+I also added capture-simulation integration tests (`tests/capture_simulation_test.rs`) so CI proves the registration + CRC pipeline recovers exact bytes after offset, rescaling, and JPEG compression, not just on pristine local files.
+
+# Fourth Experiment: The Real Hardware Path
+
+Benchmarks are useful, but the question that mattered was whether I could move a real file across the cable.
+
+My receiver is Windows 11 with WSL2. The capture card is a Macro Silicon USB HDMI dongle (`USB Video`, 1920x1080 MJPEG). Here is what failed before something finally worked.
+
+| What I tried | What happened |
+| --- | --- |
+| `ffmpeg -f dshow` in WSL | `Unknown input format: dshow` |
+| Inject and capture at 60 fps | Missing pages, `dup=` frames, extract panic |
+| FFV1 live encode during capture | `real-time buffer too full`, `frame dropped!` |
+| Extract directly from `captured.mp4` in WSL | `Initial Frames count: 0` (OpenCV cannot read MJPEG captures) |
+| Recording longer when pages were missing | Huge files, same missing pages (capture quality, not loop count) |
+
+The pattern was consistent: the problem was almost never "loop the video more." It was alignment, container, and where each command runs.
+
+# The Solution That Worked
+
+I wrote the full command sequence into `docs/runbook-windows-wsl.md`. Here is the short version that recovered a ~3 MB file byte-identically.
+
+**Shared config everywhere:**
+
+```
+--width 1920 --height 1080 --fps 30 --algo quantized --levels 2 --size 6
+```
+
+**Transmitter (source machine):** inject into a lossless MKV, then loop fullscreen on HDMI.
+
+```sh
+hdmifiletransporter \
+  -m inject \
+  -i myfile.zip \
+  -o transfer.mkv \
+  --width 1920 --height 1080 \
+  --fps 30 \
+  --algo quantized --levels 2 \
+  --size 6 \
+  -p true
+
+mpv --loop=inf --fullscreen transfer.mkv
+```
+
+**Receiver capture (Windows PowerShell, not WSL):** copy the MJPEG stream without re-encoding.
+
+```powershell
+ffmpeg -y -rtbufsize 200M -f dshow -video_size 1920x1080 -framerate 30 -i video="USB Video" -c:v copy "$env:USERPROFILE\Videos\captured.mp4"
+```
+
+Record 60 to 90 seconds. Press `q`. Watch the terminal: `speed` should stay near `1x` and there should be no `frame dropped!` lines.
+
+**Receiver extract (WSL):** convert offline, then extract with the same flags as inject.
+
+OpenCV cannot read the MJPEG capture directly. An offline pass to FFV1 fixes that without overloading the live capture buffer:
+
+```sh
+ffmpeg -i /mnt/c/Users/<you>/Videos/captured.mp4 -c:v ffv1 -level 3 captured_clean.mkv
+
+hdmifiletransporter \
+  -m extract \
+  -i captured_clean.mkv \
+  -o recovered.zip \
+  --width 1920 --height 1080 \
+  --fps 30 \
+  --algo quantized --levels 2 \
+  --size 6 \
+  -p true
+```
+
+The recovered zip matched the original byte for byte.
+
+A few things are normal and should not send you back to square one. One `No JPEG data found in image` line when capture starts is fine. A flood of MJPEG warnings during the offline convert is also fine. Check the final `frame=` count instead (`duration x 30`, aim for at least 80%).
+
+If extract still fails after a clean capture, step down to a more conservative preset and re-inject with the same new flags:
+
+```
+--algo brightness --levels 4 --size 6
+```
+
+# What Changed in the Repository
+
+For anyone pulling the code, here is the map of what landed in the last day:
+
+- **Frame format:** calibration ring, affine registration, 128-bit header, per-frame CRC32.
+- **Encodings:** `bw`, `quantized`, `brightness`, and `rgb` (rgb remains best-effort over HDMI).
+- **Container:** lossless FFV1 `.mkv` on inject.
+- **Benchmark:** `cargo run --release --bin benchmark` with capture simulation and planner tables.
+- **Tests:** capture-simulation integration tests for BW and quantized-2-level recovery.
+- **Docs:** `docs/findings.md` (full benchmark data), `docs/transfer-setup.md` (hardware setup), `docs/runbook-windows-wsl.md` (verified Windows + WSL workflow).
+
+# Conclusion
+
+Part 7 taught me that missing frames and out-of-order pages are real. Part 8 taught me that pagination alone is not enough. You also need to warp the image back into alignment, reject bad frames with a CRC instead of trusting every pixel, put data on the channel the capture card actually preserves, and run ffmpeg in the right environment with the right fps and codec choices.
+
+The HDMI file transporter is no longer just a local proof of concept. I moved a real zip across the cable and got the same bytes back. It is still slow compared to a USB stick, and it still depends on looping the video until every page passes CRC. But the pipeline is reproducible, documented, and tested against a simulated capture path that behaves a lot like the hardware.
+
+Next steps on my list: forward error correction so a frame with a few wrong cells can be corrected instead of discarded, and adaptive calibration ramps in the border so higher colour level counts can survive gamma and limited-range remapping. For now, if you want to try it yourself, start with the runbook, stay at 30 fps, and trust the CRC to throw away the bad frames while the loop brings the good ones back.

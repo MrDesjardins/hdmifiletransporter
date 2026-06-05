@@ -3,6 +3,59 @@
 Step-by-step commands for a real transfer using the setup validated in this
 project. Use the **same configuration on every step**.
 
+## Verified workflow (real transfer, June 2025)
+
+This runbook reflects a **successful end-to-end transfer** (~3 MB file recovered
+byte-identical) using a Macro Silicon USB HDMI capture card (`USB Video`,
+`1920×1080` MJPEG) on Windows 11 with WSL2 for extract. The failures along the
+way are what shaped these instructions.
+
+### What worked
+
+| Step | Machine | What to do |
+|------|---------|------------|
+| **Inject** | Source | `hdmifiletransporter -m inject` → lossless `transfer.mkv` at **30 fps** |
+| **Play** | Source | `mpv --loop=inf --fullscreen transfer.mkv` on HDMI at **1920×1080** |
+| **Capture** | **Windows PowerShell** (not WSL) | `ffmpeg -f dshow` with **`-c:v copy`** to `captured.mp4` |
+| **Convert** | WSL | MJPEG `captured.mp4` → FFV1 `captured_clean.mkv` (OpenCV cannot read MJPEG captures directly) |
+| **Extract** | WSL | `hdmifiletransporter -m extract` from `captured_clean.mkv` with **identical inject flags** |
+
+**Shared config that succeeded:**
+
+```
+--width 1920 --height 1080 --fps 30 --algo quantized --levels 2 --size 6
+```
+
+**Windows capture command that succeeded:**
+
+```powershell
+ffmpeg -y -rtbufsize 200M -f dshow -video_size 1920x1080 -framerate 30 -i video="USB Video" -c:v copy "$env:USERPROFILE\Videos\captured.mp4"
+```
+
+Record **60–90 seconds**, press `q`. `speed` ≈ `1x` and **no `frame dropped!`**
+lines during recording.
+
+**WSL convert + extract** — see Part C below.
+
+### What did *not* work (and why)
+
+| Mistake | Symptom | Fix |
+|---------|---------|-----|
+| Running `ffmpeg -f dshow` in **WSL** | `Unknown input format: dshow` | Capture in **Windows PowerShell** only |
+| Inject/capture at **60 fps** on a card that delivers ~30 fps | Missing pages, `dup=` frames, extract panic | Use **30 fps** everywhere |
+| **FFV1 live encode** during capture | `real-time buffer too full`, `frame dropped!`, corrupt MJPEG | **`-c:v copy`** during capture; FFV1 only in the offline convert step |
+| Extracting directly from `captured.mp4` in WSL | `Initial Frames count: 0` | Convert to **`captured_clean.mkv`** first (Part C3) |
+| Saving to `C:\capture.mkv` | `Permission denied` | Save to `%USERPROFILE%\Videos\` |
+| Recording longer when red frame flashes often | Huge files, same missing pages | Problem is **capture quality**, not loop count — fix drops and fps alignment |
+
+### Acceptable noise (do not panic)
+
+- One `No JPEG data found in image` line when capture **starts** — normal.
+- Many MJPEG errors during **offline convert** (C3) — normal; check the final
+  `frame=` count (`duration × 30`, aim for ≥ 80%).
+
+---
+
 ## Shared configuration (write this down)
 
 Use these values for **inject**, **capture**, and **extract**:
@@ -165,9 +218,9 @@ Stop and retry:
 ## Part C — WSL receiver (convert + extract)
 
 Run these in your **WSL terminal**. The Windows capture file is available at
-`/mnt/c/Users/<WindowsUsername>/Videos/`.
+`/mnt/c/Users/miste/Videos/`.
 
-Replace `<WindowsUsername>` with your Windows login (e.g. `miste`).
+Replace `miste` with your Windows login (e.g. `miste`).
 
 ### C1. Install dependencies (if needed)
 
@@ -193,9 +246,9 @@ Convert **after** capture (offline — not during recording):
 ```sh
 ffmpeg -y -hide_banner -loglevel error \
   -fflags +genpts+igndts -err_detect ignore_err \
-  -i /mnt/c/Users/<WindowsUsername>/Videos/captured.mp4 \
+  -i /mnt/c/Users/miste/Videos/captured.mp4 \
   -c:v ffv1 \
-  /mnt/c/Users/<WindowsUsername>/Videos/captured_clean.mkv
+  /mnt/c/Users/miste/Videos/captured_clean.mkv
 ```
 
 **Expect many MJPEG errors during this step.** Lines like these are normal when
@@ -224,10 +277,10 @@ Get capture duration (seconds), then compare to decoded frame count:
 # Duration of the Windows capture (seconds)
 ffprobe -v error -show_entries format=duration \
   -of default=noprint_wrappers=1:nokey=1 \
-  /mnt/c/Users/<WindowsUsername>/Videos/captured.mp4
+  /mnt/c/Users/miste/Videos/captured.mp4
 
 # Decoded frames in the cleaned file (look at the last "frame=" line)
-ffmpeg -hide_banner -i /mnt/c/Users/<WindowsUsername>/Videos/captured_clean.mkv -f null - 2>&1 | grep '^frame='
+ffmpeg -hide_banner -i /mnt/c/Users/miste/Videos/captured_clean.mkv -f null - 2>&1 | grep '^frame='
 ```
 
 | Metric | Formula / target |
@@ -246,8 +299,8 @@ Use the **same flags as inject**:
 ```sh
 ~/code/hdmifiletransporter/target/release/hdmifiletransporter \
   -m extract \
-  -i /mnt/c/Users/<WindowsUsername>/Videos/captured_clean.mkv \
-  -o /mnt/c/Users/<WindowsUsername>/Videos/recovered.zip \
+  -i /mnt/c/Users/miste/Videos/captured_clean.mkv \
+  -o /mnt/c/Users/miste/Videos/recovered.zip \
   --width 1920 --height 1080 \
   --fps 30 \
   --algo quantized --levels 2 \
@@ -265,13 +318,13 @@ Use the **same flags as inject**:
 ### C5. Verify the recovered file
 
 ```sh
-sha256sum myfile.zip /mnt/c/Users/<WindowsUsername>/Videos/recovered.zip
+sha256sum myfile.zip /mnt/c/Users/miste/Videos/recovered.zip
 ```
 
 Or test a zip:
 
 ```sh
-unzip -t /mnt/c/Users/<WindowsUsername>/Videos/recovered.zip
+unzip -t /mnt/c/Users/miste/Videos/recovered.zip
 ```
 
 ---

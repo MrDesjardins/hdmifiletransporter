@@ -9,6 +9,13 @@ receiver records that HDMI signal through a capture card and decodes the file ba
 to bytes. For background on the encoding format and resilience trade-offs, see
 [findings.md](findings.md).
 
+> **Verified real-world path (Windows receiver + WSL extract):** A ~3 MB file was
+> recovered byte-identically using **30 fps**, **Windows PowerShell** for
+> `ffmpeg -f dshow` capture (`-c:v copy`), then an **offline FFV1 convert** in
+> WSL before extract. See the full story, pitfalls, and commands in
+> **[runbook-windows-wsl.md](runbook-windows-wsl.md)** (section *Verified
+> workflow*).
+
 ---
 
 ## What you need

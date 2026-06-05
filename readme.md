@@ -324,13 +324,29 @@ cargo publish
 
 You must install [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) if you want to set break point with VsCode.
 
-# ffmpeg Command to Read From Other Computer 
+# Real HDMI Transfer (verified workflow)
 
-The generated video file must be ran at the same resolution as the one available for your video card. Then, on the other side of the card run this command until at least you see two times a red frames. If you are on a Windows machine, the video card might not be accessible (easily) using WSL. Thus, you might want to install and run ffmeg on a Windows terminal.
+A full **source → HDMI → USB capture card → file** transfer was completed
+successfully (June 2025). The important lessons:
 
-```sh
-ffmpeg -r 30 -f dshow -s 1920x1080 -vcodec mjpeg -i video="USB Video" -r 30 out.mp4
+- **Source:** inject and loop `transfer.mkv` at **1920×1080, 30 fps** (unchanged).
+- **Capture:** run `ffmpeg` in **Windows PowerShell**, not WSL (`-f dshow` is
+  Windows-only). Use **`-c:v copy`** — do not re-encode to FFV1 during live
+  capture.
+- **Extract:** on WSL, convert the Windows capture from MJPEG to FFV1 first
+  (OpenCV cannot read the raw capture), then run extract with the **same flags
+  as inject**.
+
+**Step-by-step commands, pitfalls, and checklist:**
+[docs/runbook-windows-wsl.md](docs/runbook-windows-wsl.md)
+
+Quick Windows capture (after inject at 30 fps):
+
+```powershell
+ffmpeg -y -rtbufsize 200M -f dshow -video_size 1920x1080 -framerate 30 -i video="USB Video" -c:v copy "$env:USERPROFILE\Videos\captured.mp4"
 ```
+
+For the full inject / convert / extract commands, use the runbook above.
 
 # Other Bins
 There is another bin called `colorframe`. It creates a small video with colors that change around the edge for testing purposed of the capture card.
