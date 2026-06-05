@@ -40,7 +40,7 @@ same values on both computers.
 | Setting | Flag | Notes |
 |---------|------|-------|
 | Resolution | `--width`, `--height` | Must match what the capture card records (commonly `1920` × `1080`) |
-| Frame rate | `--fps` | Must match playback and capture rate (e.g. `60`) |
+| Frame rate | `--fps` | Must match playback and capture rate (e.g. `30`; typical for USB capture cards) |
 | Cell size | `--size` | Pixels per encoded symbol; must divide width and height evenly |
 | Algorithm | `--algo` | See recommendations below |
 | Levels | `--levels` | Only for `quantized` and `brightness`; must be a power of two (`2`–`256`) |
@@ -60,7 +60,7 @@ usually corrupts dense RGB encoding.
 **Example shared config** used in the steps below:
 
 ```
---width 1920 --height 1080 --fps 60 --algo quantized --levels 2 --size 6
+--width 1920 --height 1080 --fps 30 --algo quantized --levels 2 --size 6
 ```
 
 ---
@@ -108,7 +108,7 @@ hdmifiletransporter \
   -i myfile.zip \
   -o transfer.mkv \
   --width 1920 --height 1080 \
-  --fps 60 \
+  --fps 30 \
   --algo quantized --levels 2 \
   --size 6 \
   -p true
@@ -215,21 +215,21 @@ Before a real transfer, record a few seconds and confirm you see the calibration
 ring (white border with square markers in three corners) and the looping red start
 frame.
 
-**Windows:**
+**Windows** (PowerShell — not WSL):
 
-```sh
-ffmpeg -r 60 -f dshow -s 1920x1080 -vcodec mjpeg -i video="USB Video" -t 10 -r 60 capture_test.mp4
+```powershell
+ffmpeg -y -rtbufsize 200M -f dshow -video_size 1920x1080 -framerate 30 -i video="USB Video" -c:v copy -t 10 "$env:USERPROFILE\Videos\capture_test.mp4"
 ```
 
 **Linux** (adjust `/dev/video0` and input format as needed):
 
 ```sh
-ffmpeg -f v4l2 -input_format mjpeg -video_size 1920x1080 -framerate 60 -i /dev/video0 -t 10 -r 60 capture_test.mp4
+ffmpeg -f v4l2 -input_format mjpeg -video_size 1920x1080 -framerate 30 -i /dev/video0 -t 10 -r 30 capture_test.mp4
 ```
 
 > On Windows, USB capture devices are often easier to access from native Windows
-> than from WSL. Run `ffmpeg` and `hdmifiletransporter` in a Windows terminal if
-> WSL cannot open the device.
+> than from WSL. For the full Windows capture + WSL extract workflow, see
+> [runbook-windows-wsl.md](runbook-windows-wsl.md).
 
 ### Step 4: Record the live transfer
 
@@ -237,24 +237,29 @@ Start recording **before** or as the transmitter begins looping. Keep recording
 until you have seen the red start frame **at least twice** (more loops improve
 reliability when individual frames are dropped).
 
-**Windows:**
+**Windows** (PowerShell — not WSL):
 
-```sh
-ffmpeg -r 60 -f dshow -s 1920x1080 -vcodec mjpeg -i video="USB Video" -r 60 captured.mp4
+```powershell
+ffmpeg -y -rtbufsize 200M -f dshow -video_size 1920x1080 -framerate 30 -i video="USB Video" -c:v copy "$env:USERPROFILE\Videos\captured.mp4"
 ```
 
-Press `q` to stop when enough footage is recorded.
+Press `q` to stop after **60–90 seconds** (several loops). Watch for `frame dropped!`
+— if it appears, re-capture with USB 3.0 and no other apps using the device.
 
 **Linux:**
 
 ```sh
-ffmpeg -f v4l2 -input_format mjpeg -video_size 1920x1080 -framerate 60 -i /dev/video0 -r 60 captured.mp4
+ffmpeg -f v4l2 -input_format mjpeg -video_size 1920x1080 -framerate 30 -i /dev/video0 -r 30 captured.mp4
 ```
 
 The `-r` (frame rate) and `-s` / `-video_size` values must match the transmitter
 settings.
 
 ### Step 5: Extract the file from the capture
+
+> **WSL users:** OpenCV often cannot read USB-capture MJPEG directly. Convert
+> the Windows capture to FFV1 first, then extract — see
+> [runbook-windows-wsl.md](runbook-windows-wsl.md), Part C3–C4.
 
 Run extract with the **same** width, height, fps, algo, levels, and size used
 during inject:
@@ -265,7 +270,7 @@ hdmifiletransporter \
   -i captured.mp4 \
   -o recovered.zip \
   --width 1920 --height 1080 \
-  --fps 60 \
+  --fps 30 \
   --algo quantized --levels 2 \
   --size 6 \
   -p true
