@@ -70,11 +70,12 @@ fn main() {
             fps: 30,
             height: height,
             width: width,
-            output_video_file: "outputs/diagonal_video.mp4".to_string(),
+            output_video_file: "outputs/diagonal_video.mkv".to_string(),
             show_progress: true,
             size: 1,
         },
         frames,
-    );
+    )
+    .expect("Unable to create the diagonal video");
     println!("Done");
 }

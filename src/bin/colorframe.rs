@@ -80,11 +80,12 @@ fn main() {
             fps: 30,
             height: height,
             width: width,
-            output_video_file: "outputs/color_video.mp4".to_string(),
+            output_video_file: "outputs/color_video.mkv".to_string(),
             show_progress: true,
             size: 1
         },
         frames,
-    );
+    )
+    .expect("Unable to create the color video");
     println!("Done");
 }

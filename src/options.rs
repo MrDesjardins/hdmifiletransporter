@@ -10,8 +10,22 @@ pub enum AppMode {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AlgoFrame {
+    /// Raw 8-bit colour: 3 bytes per cell (256 levels/channel). Dense, fragile.
     RGB,
+    /// Black/white: 1 bit per cell using all three channels. Sparse, robust.
     BW,
+    /// Quantized colour: each channel carries one of `levels` evenly-spaced
+    /// symbols (a power of two), i.e. `log2(levels)` bits per channel and
+    /// `3*log2(levels)` bits per cell. `levels = 2` is the densest maximally
+    /// separated option (3 bits/cell, 3x BW); `levels = 256` equals raw RGB.
+    Quantized(u32),
+    /// Brightness / luma: each cell is a single grey shade chosen from `levels`
+    /// evenly-spaced values (R = G = B), i.e. `log2(levels)` bits per cell (one
+    /// symbol, not three). Because a capture card keeps luminance at full
+    /// resolution but subsamples colour, packing data into brightness instead of
+    /// chroma survives compression far better - so more levels stay reliable
+    /// than in `Quantized`, at 1/3 the bits/cell for the same level count.
+    Brightness(u32),
 }
 
 impl std::fmt::Display for AppMode {
@@ -38,11 +52,12 @@ impl std::str::FromStr for AppMode {
 
 impl std::fmt::Display for AlgoFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::RGB => "rgb",
-            Self::BW => "bw",
-        };
-        s.fmt(f)
+        match self {
+            Self::RGB => write!(f, "rgb"),
+            Self::BW => write!(f, "bw"),
+            Self::Quantized(levels) => write!(f, "quantized{levels}"),
+            Self::Brightness(levels) => write!(f, "brightness{levels}"),
+        }
     }
 }
 
@@ -53,23 +68,46 @@ impl std::str::FromStr for AlgoFrame {
         match s {
             "rgb" => Ok(Self::RGB),
             "bw" => Ok(Self::BW),
+            // The level count is supplied separately via `--levels`; these are
+            // placeholders that `extract_options` rewrites with the real value.
+            "quantized" => Ok(Self::Quantized(DEFAULT_QUANTIZED_LEVELS)),
+            "brightness" => Ok(Self::Brightness(DEFAULT_QUANTIZED_LEVELS)),
             _ => Err(format!("Unknown algo: {s}")),
         }
     }
 }
 
-#[derive(Clone)]
-pub struct InjectOption {
-    pub message: String,
-    pub password: Option<String>,
-    pub input_image_path: String,
-    pub output_image_path: String,
+/// Default number of levels per channel when `--algo quantized` is selected
+/// without an explicit `--levels`. Four levels = 2 bits/channel = 6 bits/cell,
+/// a good density/robustness compromise for typical HDMI links.
+pub const DEFAULT_QUANTIZED_LEVELS: u32 = 4;
+
+/// Resolve the level count and validate the algo selection. For the level-based
+/// algos (`quantized`, `brightness`) the levels come from `--levels` (falling
+/// back to the default) and must be a power of two in `2..=256`.
+fn resolve_algo(algo: AlgoFrame, levels: Option<u32>) -> AlgoFrame {
+    let validate = |levels: u32| {
+        if !levels.is_power_of_two() || !(2..=256).contains(&levels) {
+            panic!("--levels must be a power of two between 2 and 256 (got {levels})");
+        }
+        levels
+    };
+    match algo {
+        AlgoFrame::Quantized(_) => {
+            AlgoFrame::Quantized(validate(levels.unwrap_or(DEFAULT_QUANTIZED_LEVELS)))
+        }
+        AlgoFrame::Brightness(_) => {
+            AlgoFrame::Brightness(validate(levels.unwrap_or(DEFAULT_QUANTIZED_LEVELS)))
+        }
+        other => other,
+    }
 }
 
 /// CLI arguments
 ///
-/// The command line provided in this Cargo accepts many options to encrypt a message
-/// and decrypt a message. The full list of options are available in the `CliData` struct.
+/// The command line accepts options to inject a file into a video and to extract
+/// a file back from a video. The full list of options is available in the
+/// `CliData` struct.
 ///
 #[derive(Parser)]
 #[clap(name = "from_str")]
@@ -113,9 +151,16 @@ pub struct CliData {
     pub mode: Option<AppMode>,
 
     /// Determine how the data is injected and extract into a frame
-    #[arg(short='a', long, value_parser = clap::builder::PossibleValuesParser::new(["rgb", "bw"])
+    #[arg(short='a', long, value_parser = clap::builder::PossibleValuesParser::new(["rgb", "bw", "quantized", "brightness"])
     .map(|s| s.parse::<AlgoFrame>().unwrap()),)]
     pub algo: Option<AlgoFrame>,
+
+    /// Number of levels for the `quantized`/`brightness` algos. Must be a power
+    /// of two in 2..=256. For `quantized` it is levels per channel (3*log2 bits
+    /// per cell); for `brightness` it is grey shades per cell (log2 bits per
+    /// cell). Ignored for the `rgb` and `bw` algos.
+    #[arg(short = 'l', long)]
+    pub levels: Option<u32>,
 
     #[arg(short = 'p', long)]
     pub show_progress: Option<bool>,
@@ -128,7 +173,7 @@ pub struct CliData {
 /// is missing
 ///
 /// # Arguments
-/// args - The command line argument that may contain encrypt or decrypt information
+/// args - The command line argument that may contain inject or extract information
 ///
 /// # Returns
 /// Return a well formed structure for the task asked or return a failure with the missing
@@ -155,12 +200,12 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                         file_path,
                         output_video_file: args
                             .output_video_path
-                            .unwrap_or_else(|| "video.mp4".to_string()),
+                            .unwrap_or_else(|| "video.mkv".to_string()),
                         size: args.size.unwrap_or(1),
                         fps: args.fps.unwrap_or(30),
                         height: args.height.unwrap_or(2160),
                         width: args.width.unwrap_or(3840),
-                        algo: args.algo.unwrap_or(AlgoFrame::RGB),
+                        algo: resolve_algo(args.algo.unwrap_or(AlgoFrame::RGB), args.levels),
                         show_progress: args.show_progress.unwrap_or(false)
                     }
                 })
@@ -169,7 +214,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                 ExtractOptions {
                     video_file_path: args
                         .input_file_path
-                        .unwrap_or_else(|| "video.mp4".to_string()),
+                        .unwrap_or_else(|| "video.mkv".to_string()),
                     extracted_file_path: args
                         .output_video_path
                         .unwrap_or_else(|| "mydata.txt".to_string()),
@@ -177,12 +222,12 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     fps: args.fps.unwrap_or(30),
                     height: args.height.unwrap_or(2160),
                     width: args.width.unwrap_or(3840),
-                    algo: args.algo.unwrap_or(AlgoFrame::RGB),
+                    algo: resolve_algo(args.algo.unwrap_or(AlgoFrame::RGB), args.levels),
                     show_progress: args.show_progress.unwrap_or(false)
                 }
             }),
         },
-        None => panic!("Encrypt mode is required"),
+        None => panic!("Mode is required (use -m inject or -m extract)"),
     })
 }
 
@@ -235,6 +280,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            levels: None,
             show_progress: None
         });
     }
@@ -250,6 +296,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            levels: None,
             show_progress: None,
         });
     }
@@ -264,6 +311,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            levels: None,
             show_progress: None,
         });
         let unwrapped_options = options.unwrap();
@@ -272,7 +320,7 @@ mod options_tests {
             assert_eq!(op.height, 2160);
             assert_eq!(op.width, 3840);
             assert_eq!(op.size, 1);
-            assert_eq!(op.output_video_file, "video.mp4");
+            assert_eq!(op.output_video_file, "video.mkv");
             assert_eq!(op.algo, AlgoFrame::RGB);
             assert_eq!(op.show_progress, false);
         } else {
@@ -290,6 +338,7 @@ mod options_tests {
             size: None,
             width: None,
             algo: None,
+            levels: None,
             show_progress: None,
         });
         let unwrapped_options = options.unwrap();
@@ -299,7 +348,7 @@ mod options_tests {
             assert_eq!(op.width, 3840);
             assert_eq!(op.size, 1);
             assert_eq!(op.extracted_file_path, "mydata.txt");
-            assert_eq!(op.video_file_path, "video.mp4");
+            assert_eq!(op.video_file_path, "video.mkv");
             assert_eq!(op.algo, AlgoFrame::RGB);
             assert_eq!(op.show_progress, false);
         } else {

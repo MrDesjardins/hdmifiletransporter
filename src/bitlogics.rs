@@ -42,6 +42,36 @@ pub fn mutate_byte(byte_val: &mut u8, bit_val: bool, position: u8) {
     *byte_val = *byte_val & !(1 << position) | (bi << position);
 }
 
+/// Number of bits carried by a single channel for a quantized frame with
+/// `levels` evenly spaced symbols. `levels` must be a power of two, so this is
+/// simply `log2(levels)`.
+pub fn bits_per_channel(levels: u32) -> u32 {
+    levels.trailing_zeros()
+}
+
+/// Map a quantized symbol (`0..levels`) to the 8-bit channel value that sits at
+/// its evenly spaced position. With `levels = 2` the symbols land on 0 and 255
+/// (maximum separation); with `levels = 256` symbol and value are identical.
+pub fn symbol_to_value(symbol: u32, levels: u32) -> u8 {
+    if levels <= 1 {
+        return 0;
+    }
+    let spacing = 255.0 / (levels as f64 - 1.0);
+    (symbol as f64 * spacing).round() as u8
+}
+
+/// Map a measured 8-bit channel value back to the nearest quantized symbol in
+/// `0..levels`. This is the decode counterpart of [`symbol_to_value`]; rounding
+/// to the closest level is what gives the scheme its noise tolerance.
+pub fn value_to_symbol(value: u8, levels: u32) -> u32 {
+    if levels <= 1 {
+        return 0;
+    }
+    let spacing = 255.0 / (levels as f64 - 1.0);
+    let symbol = (value as f64 / spacing).round();
+    symbol.clamp(0.0, (levels - 1) as f64) as u32
+}
+
 /// Get a byte from a list of bit
 pub fn get_byte_from_bits(bits: [bool; 8]) -> u8 {
     let mut result: u8 = 0;
@@ -159,6 +189,40 @@ mod injectionlogics_tests {
         mutate_byte(&mut input, true, 1);
         mutate_byte(&mut input, true, 0);
         assert_eq!(input, expected)
+    }
+
+    #[test]
+    fn test_bits_per_channel() {
+        assert_eq!(bits_per_channel(2), 1);
+        assert_eq!(bits_per_channel(4), 2);
+        assert_eq!(bits_per_channel(8), 3);
+        assert_eq!(bits_per_channel(256), 8);
+    }
+
+    #[test]
+    fn test_symbol_value_round_trip_two_levels() {
+        // 2 levels -> black/white with maximum separation.
+        assert_eq!(symbol_to_value(0, 2), 0);
+        assert_eq!(symbol_to_value(1, 2), 255);
+        assert_eq!(value_to_symbol(0, 2), 0);
+        assert_eq!(value_to_symbol(255, 2), 1);
+        // Noisy reads still snap to the nearest level.
+        assert_eq!(value_to_symbol(20, 2), 0);
+        assert_eq!(value_to_symbol(200, 2), 1);
+    }
+
+    #[test]
+    fn test_symbol_value_round_trip_all_symbols() {
+        for &levels in &[2u32, 4, 8, 16, 256] {
+            for symbol in 0..levels {
+                let value = symbol_to_value(symbol, levels);
+                assert_eq!(
+                    value_to_symbol(value, levels),
+                    symbol,
+                    "levels={levels} symbol={symbol} value={value}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -20,16 +20,16 @@ use hdmifiletransporter::options::{VideoOptions, InjectOptions, AlgoFrame};
 let options = VideoOptions::InjectInVideo({
     InjectOptions {
         file_path: "/your/file/here.zip".to_string(),
-        output_video_file: "/your/video.mp4".to_string(),
+        output_video_file: "/your/video.mkv".to_string(),
         fps: 30,
-        width: 1080,
-        height: 1920,
+        width: 1920,
+        height: 1080,
         size: 1,
         algo: AlgoFrame::RGB,
         show_progress: false
     }
 });
-execute_with_video_options(options);
+let _ = execute_with_video_options(options);
 ```
 
 ## Extract the file from the video
@@ -40,17 +40,18 @@ use hdmifiletransporter::options::{VideoOptions, ExtractOptions, AlgoFrame};
 
 let options = VideoOptions::ExtractFromVideo({
     ExtractOptions {
-        video_file_path:"/your/video.mp4".to_string(),
+        video_file_path:"/your/video.mkv".to_string(),
         extracted_file_path: "/your/file/here.zip".to_string(),
         fps: 30,
-        width: 1080,
-        height:1920,
+        width: 1920,
+        height: 1080,
         size: 1,
         algo: AlgoFrame::RGB,
         show_progress: false
     }
 });
-execute_with_video_options(options);
+let _ = execute_with_video_options(options);
+```
 */
 
 mod bitlogics;
@@ -65,24 +66,27 @@ use extractionlogics::data_to_files;
 use injectionlogics::file_to_data;
 
 // Re-export for external access (main.rs)
-pub use crate::extractionlogics::{frames_to_data, video_to_frames};
+pub use crate::extractionlogics::{frames_to_data, register_frame, video_to_frames};
+pub use crate::injectionextraction::{content_cell_xy, frame_capacity, HEADER_BITS};
 pub use crate::injectionlogics::{create_starting_frame, data_to_frames, frames_to_video};
 pub use crate::options::{extract_options, CliData, ExtractOptions, InjectOptions, VideoOptions};
 pub use crate::videoframe::VideoFrame;
-pub use crate::instructionlogics::Instruction;
+pub use crate::instructionlogics::{FrameHeader, FrameType, Instruction};
 
 /// Execute video logics
 /// Two executions possible: inject a file into a video or extract it.
-pub fn execute_with_video_options(options: VideoOptions) {
+///
+/// Returns an error describing the failure (for example if the video could not
+/// be written) so the caller can react instead of silently continuing.
+pub fn execute_with_video_options(options: VideoOptions) -> Result<(), String> {
     match options {
         VideoOptions::InjectInVideo(n) => {
             let data = file_to_data(&n);
-            let instruction_data = Instruction::new(data.len() as u64);
-            let starting_frame = create_starting_frame(&instruction_data, &n);
+            let starting_frame = create_starting_frame(data.len() as u64, &n);
             let frames = data_to_frames(&n, data);
             let mut merged_frames = vec![starting_frame];
             merged_frames.extend(frames);
-            frames_to_video(n, merged_frames);
+            frames_to_video(n, merged_frames)?;
         }
         VideoOptions::ExtractFromVideo(n) => {
             let frames = video_to_frames(&n);
@@ -90,4 +94,5 @@ pub fn execute_with_video_options(options: VideoOptions) {
             data_to_files(&n, data);
         }
     }
+    Ok(())
 }

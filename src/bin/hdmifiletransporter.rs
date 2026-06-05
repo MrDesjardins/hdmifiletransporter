@@ -12,7 +12,10 @@ fn main() {
             // Start the transformation of the vector of byte into a video format
             // This is only executed if the file provided was valid and was decoded
             // into a vector of byte.
-            execute_with_video_options(oop);
+            if let Err(error) = execute_with_video_options(oop) {
+                eprintln!("{}", error);
+                std::process::exit(1);
+            }
         }
         Err(error) => panic!("{:?}", error),
     };

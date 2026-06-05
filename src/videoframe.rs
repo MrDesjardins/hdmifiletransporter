@@ -1,9 +1,11 @@
-use opencv::core::prelude::*;
 use opencv::core::{Mat, Size, CV_8UC3};
+use opencv::prelude::*;
 
 use crate::bitlogics::get_rgb_for_bit;
-use crate::injectionextraction::Color;
-use crate::instructionlogics::Instruction;
+use crate::injectionextraction::{
+    cells_high, cells_wide, content_cell_xy, marker_cell_origins, Color, BORDER_CELLS, MARKER_CELLS,
+};
+use crate::instructionlogics::FrameHeader;
 
 /// Define a single frame that the video will play
 /// E.g. on a 30fps video, there will be 30 VideoFrame every second
@@ -78,77 +80,74 @@ impl VideoFrame {
         }
     }
 
-    /// Write at the beginning of the frame the instruction using the reserved space
-    /// with the size pixel per bit regardless if BW or RGB mode. So, will be BW all
-    /// the time and will take 64 "spaces" (E.g. 64 pixels if size is 1)
-    pub fn write_instruction(&mut self, instruction: &Instruction, size: u8) -> (u16, u16) {
-        let mut instruction_index = 0;
-        let mut x: u16 = 0;
-        let mut y: u16 = 0;
-        'outer: for i in (0..self.frame_size.height as u16).step_by(size as usize) {
-            for j in (0..self.frame_size.width as u16).step_by(size as usize) {
-                if instruction_index < 64 {
-                    let (r, g, b) = get_rgb_for_bit(
-                        instruction.relevant_byte_count_in_64bits[instruction_index],
-                    );
-                    self.write(r, g, b, j, i, size);
-                    x = j + size as u16;
-                    instruction_index += 1;
-                } else {
-                    break 'outer;
+    /// Draw the calibration ring used by the extractor to re-align a captured
+    /// frame: a white quiet-zone border with three QR-style finder patterns in
+    /// the top-left, top-right and bottom-left corners. The asymmetry (only
+    /// three corners) lets the decoder recover orientation.
+    pub fn write_calibration(&mut self, size: u8) {
+        let width = self.frame_size.width as u16;
+        let height = self.frame_size.height as u16;
+        let cols = cells_wide(width, size);
+        let rows = cells_high(height, size);
+
+        // White quiet-zone border ring.
+        for cy in 0..rows {
+            for cx in 0..cols {
+                let in_ring = cx < BORDER_CELLS
+                    || cx >= cols - BORDER_CELLS
+                    || cy < BORDER_CELLS
+                    || cy >= rows - BORDER_CELLS;
+                if in_ring {
+                    let x = (cx * size as usize) as u16;
+                    let y = (cy * size as usize) as u16;
+                    self.write(255, 255, 255, x, y, size);
                 }
             }
+        }
 
-            y = i + size as u16;
-            x = 0; // Return to the beginning of the next line
+        // Finder patterns at the three corners.
+        for (ox, oy) in marker_cell_origins(width, height, size) {
+            self.draw_finder_pattern(ox, oy, size);
         }
-        if x == self.frame_size.width as u16 {
-            x = 0; // y is already increased
-        }
-        return (x, y);
     }
 
-    /// Write a number at a specific location
-    pub fn write_pagination(
-        &mut self,
-        x_start: u16,
-        y_start: u16,
-        pagination: &u64,
-        size: u8,
-    ) -> (u16, u16) {
-        let mut pagination_index = 0;
-        let mut x: u16 = x_start;
-        let mut y: u16 = y_start;
-        // We reuse the pagination object since we will store the page number into a 64 bits also
-        // This might is possible until more instructions are added then would need to move the logic
-        // outside the Instruction
-        let pagination_instruction = Instruction::new(*pagination);
-        'outer: while y < self.frame_size.height as u16 {
-            while x < self.frame_size.width as u16 {
-                if pagination_index < 64 {
-                    let (r, g, b) = get_rgb_for_bit(
-                        pagination_instruction.relevant_byte_count_in_64bits[pagination_index],
-                    );
-                    self.write(r, g, b, x, y, size);
-                    x += size as u16;
-                    pagination_index += 1;
+    /// Draw a single `MARKER_CELLS` x `MARKER_CELLS` concentric-square finder
+    /// pattern with its top-left at the given cell coordinate.
+    fn draw_finder_pattern(&mut self, origin_cx: usize, origin_cy: usize, size: u8) {
+        let last = MARKER_CELLS - 1;
+        for r in 0..MARKER_CELLS {
+            for c in 0..MARKER_CELLS {
+                let outer_ring = r == 0 || r == last || c == 0 || c == last;
+                let center = r >= 2 && r <= MARKER_CELLS - 3 && c >= 2 && c <= MARKER_CELLS - 3;
+                let (rr, gg, bb) = if outer_ring || center {
+                    (0, 0, 0) // black
                 } else {
-                    break 'outer;
-                }
+                    (255, 255, 255) // white middle ring
+                };
+                let x = ((origin_cx + c) * size as usize) as u16;
+                let y = ((origin_cy + r) * size as usize) as u16;
+                self.write(rr, gg, bb, x, y, size);
             }
-            y += size as u16;
-            x = 0; // Return to the beginning of the next line
         }
-        if x == self.frame_size.width as u16 {
-            x = 0; // y is already increased
+    }
+
+    /// Write the per-frame header (black/white) into the first `HEADER_BITS`
+    /// content cells (just inside the calibration ring).
+    pub fn write_header(&mut self, header: &FrameHeader, size: u8) {
+        let width = self.frame_size.width as u16;
+        let bits = header.to_bits();
+        for (index, bit) in bits.iter().enumerate() {
+            let (x, y) = content_cell_xy(index, width, size);
+            let (r, g, b) = get_rgb_for_bit(*bit);
+            self.write(r, g, b, x, y, size);
         }
-        return (x, y);
     }
 }
 
 #[cfg(test)]
 mod videoframe_tests {
-    use crate::instructionlogics::Instruction;
+    use crate::injectionextraction::{content_cell_xy, BORDER_CELLS};
+    use crate::instructionlogics::{FrameHeader, FrameType};
 
     use super::VideoFrame;
     use opencv::core::prelude::*;
@@ -201,116 +200,56 @@ mod videoframe_tests {
     }
 
     #[test]
-    fn test_write_image_instruction() {
-        let mut videoframe = VideoFrame::new(100, 100);
-        let mut instruction = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        instruction.relevant_byte_count_in_64bits[63] = true;
+    fn test_write_calibration_draws_white_corner_and_finder() {
+        // Large enough to hold the border ring and finder patterns.
+        let mut videoframe = VideoFrame::new(128, 128);
+        videoframe.write_calibration(1);
 
-        videoframe.write_instruction(&instruction, 1);
-        let mut color: crate::injectionextraction::Color;
-        for i in 0..3 {
-            color = videoframe.read_coordinate_color(i, 0);
-            assert_eq!(color.b, 0);
-            assert_eq!(color.g, 0);
-            assert_eq!(color.r, 0);
-        }
-        color = videoframe.read_coordinate_color(63, 0); // The last bit of instruction is true
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
+        // The very top-left pixel is the quiet zone (white).
+        let color = videoframe.read_coordinate_color(0, 0);
         assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
+
+        // The finder pattern starts one quiet cell in: its outer ring is black.
+        let color = videoframe.read_coordinate_color(1, 1);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+
+        // The centre of the 7x7 finder pattern (cell 1+3, 1+3) is black.
+        let color = videoframe.read_coordinate_color(4, 4);
+        assert_eq!(color.r, 0);
+        assert_eq!(color.g, 0);
+        assert_eq!(color.b, 0);
+
+        // The middle ring (cell 1+1, 1+3) is white.
+        let color = videoframe.read_coordinate_color(2, 4);
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 255);
+        assert_eq!(color.b, 255);
     }
 
     #[test]
-    fn test_write_image_pagination_with_instruction() {
-        let mut videoframe = VideoFrame::new(200, 100);
-        let mut instruction = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        instruction.relevant_byte_count_in_64bits[63] = true;
+    fn test_write_header_round_trips_into_content_cells() {
+        let mut videoframe = VideoFrame::new(128, 128);
+        let header = FrameHeader::new(FrameType::Data, 7, &[1, 2, 3]);
+        videoframe.write_header(&header, 1);
 
-        let (x, y) = videoframe.write_instruction(&instruction, 1);
-        videoframe.write_pagination(x, y, &1, 1);
-        let mut color: crate::injectionextraction::Color;
-        for i in 0..3 {
-            color = videoframe.read_coordinate_color(i, 0);
-            assert_eq!(color.b, 0);
-            assert_eq!(color.g, 0);
-            assert_eq!(color.r, 0);
-        }
-        color = videoframe.read_coordinate_color(63, 0); // The last bit of instruction is true
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-        color = videoframe.read_coordinate_color(64, 0); // The first bit of pagination
-        assert_eq!(color.b, 0);
-        assert_eq!(color.g, 0);
-        assert_eq!(color.r, 0);
-        color = videoframe.read_coordinate_color(126, 0); // The bit before last of pagination
-        assert_eq!(color.b, 0);
-        assert_eq!(color.g, 0);
-        assert_eq!(color.r, 0);
-        color = videoframe.read_coordinate_color(127, 0); // The last bit of pagination
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-    }
-
-    #[test]
-    fn test_write_image_pagination2_with_instruction() {
-        let mut videoframe = VideoFrame::new(200, 100);
-        let mut instruction = Instruction {
-            relevant_byte_count_in_64bits: [false; 64],
-        };
-        instruction.relevant_byte_count_in_64bits[63] = true;
-
-        let (x, y) = videoframe.write_instruction(&instruction, 1);
-        videoframe.write_pagination(x, y, &3, 1);
-        let mut color: crate::injectionextraction::Color;
-        for i in 0..3 {
-            color = videoframe.read_coordinate_color(i, 0);
-            assert_eq!(color.b, 0);
-            assert_eq!(color.g, 0);
-            assert_eq!(color.r, 0);
-        }
-        color = videoframe.read_coordinate_color(63, 0); // The last bit of instruction is true
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-        color = videoframe.read_coordinate_color(64, 0); // The first bit of pagination
-        assert_eq!(color.b, 0);
-        assert_eq!(color.g, 0);
-        assert_eq!(color.r, 0);
-        color = videoframe.read_coordinate_color(126, 0); // The bit before last of pagination
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-        color = videoframe.read_coordinate_color(127, 0); // The last bit of pagination
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-    }
-    #[test]
-    fn test_write_image_pagination_without_instruction() {
-        let mut videoframe = VideoFrame::new(200, 100);
-        let (x, _y) = videoframe.write_pagination(0, 0, &3, 1);
-        let mut color: crate::injectionextraction::Color;
-        for i in 0..61 {
-            color = videoframe.read_coordinate_color(i, 0);
-            assert_eq!(color.b, 0);
-            assert_eq!(color.g, 0);
-            assert_eq!(color.r, 0);
-        }
-        color = videoframe.read_coordinate_color(62, 0); // The bit before last of instruction is true
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-        color = videoframe.read_coordinate_color(63, 0); // The last bit of pagination
-        assert_eq!(color.b, 255);
-        assert_eq!(color.g, 255);
-        assert_eq!(color.r, 255);
-        // Check if the x moved
-        assert_eq!(x, 64) // (0..63) = Pagination, 64 is the next
+        // Read the HEADER_BITS cells back and parse them.
+        let bits: Vec<bool> = (0..crate::injectionextraction::HEADER_BITS)
+            .map(|i| {
+                let (x, y) = content_cell_xy(i, 128, 1);
+                let c = videoframe.read_coordinate_color(x, y);
+                // White (>=128 average) means bit set.
+                (c.r as u32 + c.g as u32 + c.b as u32) >= 382
+            })
+            .collect();
+        let parsed = FrameHeader::from_bits(&bits).expect("header should parse");
+        assert_eq!(parsed, header);
+        // First content cell is just inside the border ring.
+        let (x, y) = content_cell_xy(0, 128, 1);
+        assert_eq!(x as usize, BORDER_CELLS);
+        assert_eq!(y as usize, BORDER_CELLS);
     }
 }
