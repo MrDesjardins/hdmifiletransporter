@@ -1,5 +1,4 @@
 use clap::builder::TypedValueParser;
-use clap::command;
 use clap::Parser;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
