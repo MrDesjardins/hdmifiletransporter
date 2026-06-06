@@ -90,7 +90,8 @@ jobs:
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v6
         with:
-          files: coverage/*.lcov
+          files: target/coverage/tests.lcov
+          fail_ci_if_error: true
           verbose: true
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
       
