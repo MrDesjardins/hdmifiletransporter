@@ -21,14 +21,12 @@ jobs:
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v5
 
       - name: Install toolchains
-        uses: dtolnay/rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
 
       - name: Install CV
         if: runner.os == 'Linux'
@@ -46,9 +44,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
+        run: cargo check
 
   coverage:
     name: Test and Coverage
@@ -61,13 +57,12 @@ jobs:
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install toolchains
-        uses: dtolnay/rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-          override: true
           components: llvm-tools-preview
 
       - name: Install CV
@@ -85,17 +80,15 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Test Only
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-        if: matrix.os != 'ubuntu-latest' && matrix.rust != 'stable'
+        run: cargo test
+        if: matrix.rust != 'stable'
 
       - name: Test + Coverage
         run: bash ${GITHUB_WORKSPACE}/coverage_ci.sh
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v6
         with:
           files: coverage/*.lcov
           verbose: true

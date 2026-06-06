@@ -10,12 +10,12 @@ use crate::instructionlogics::FrameHeader;
 /// Define a single frame that the video will play
 /// E.g. on a 30fps video, there will be 30 VideoFrame every second
 ///
-/// Original source: https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/embedsource.rs
+/// Original source: <https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/embedsource.rs>
 #[derive(Clone)]
 pub struct VideoFrame {
     /// A Mat is a dense array to store color
     ///
-    /// Reference: https://docs.opencv.org/3.4/d3/d63/classcv_1_1Mat.html
+    /// Reference: <https://docs.opencv.org/3.4/d3/d63/classcv_1_1Mat.html>
     pub image: Mat,
 
     /// Each frame has as width and height. This is the multiplication of both.
@@ -152,7 +152,7 @@ mod videoframe_tests {
     use super::VideoFrame;
     use opencv::core::prelude::*;
     use opencv::core::{Mat, CV_8UC3};
-    use opencv::prelude::MatTraitConstManual;
+
     #[test]
     fn test_new_create_image_size() {
         let result = VideoFrame::new(100, 50);
@@ -196,6 +196,17 @@ mod videoframe_tests {
             let unwrapped = videoframe.unwrap();
             assert_eq!(unwrapped.frame_size.width, 200);
             assert_eq!(unwrapped.frame_size.height, 100);
+        }
+    }
+
+    #[test]
+    fn test_from_rejects_height_not_multiple_of_cell_size() {
+        unsafe {
+            let mat = Mat::new_rows_cols(101, 200, CV_8UC3).unwrap();
+            match VideoFrame::from(mat, 2) {
+                Ok(_) => panic!("Expected frame size validation to fail"),
+                Err(err) => assert_eq!(err, "Image size is not a multiple of the size"),
+            }
         }
     }
 

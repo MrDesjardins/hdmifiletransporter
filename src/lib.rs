@@ -55,23 +55,47 @@ let _ = execute_with_video_options(options);
 */
 
 mod bitlogics;
+#[cfg(feature = "opencv-backend")]
 mod extractionlogics;
+#[cfg(not(feature = "opencv-backend"))]
+mod extractionlogics_stub;
 mod injectionextraction;
+#[cfg(feature = "opencv-backend")]
 mod injectionlogics;
+#[cfg(not(feature = "opencv-backend"))]
+mod injectionlogics_stub;
 mod instructionlogics;
 pub mod options;
+#[cfg(feature = "opencv-backend")]
 mod videoframe;
+#[cfg(not(feature = "opencv-backend"))]
+mod videoframe_stub;
 
+#[cfg(feature = "opencv-backend")]
 use extractionlogics::data_to_files;
+#[cfg(not(feature = "opencv-backend"))]
+use extractionlogics_stub::data_to_files;
+#[cfg(feature = "opencv-backend")]
 use injectionlogics::file_to_data;
+#[cfg(not(feature = "opencv-backend"))]
+use injectionlogics_stub::file_to_data;
 
 // Re-export for external access (main.rs)
+#[cfg(feature = "opencv-backend")]
 pub use crate::extractionlogics::{frames_to_data, register_frame, video_to_frames};
+#[cfg(not(feature = "opencv-backend"))]
+pub use crate::extractionlogics_stub::{frames_to_data, video_to_frames};
 pub use crate::injectionextraction::{content_cell_xy, frame_capacity, HEADER_BITS};
+#[cfg(feature = "opencv-backend")]
 pub use crate::injectionlogics::{create_starting_frame, data_to_frames, frames_to_video};
-pub use crate::options::{extract_options, CliData, ExtractOptions, InjectOptions, VideoOptions};
-pub use crate::videoframe::VideoFrame;
+#[cfg(not(feature = "opencv-backend"))]
+pub use crate::injectionlogics_stub::{create_starting_frame, data_to_frames, frames_to_video};
 pub use crate::instructionlogics::{FrameHeader, FrameType, Instruction};
+pub use crate::options::{extract_options, CliData, ExtractOptions, InjectOptions, VideoOptions};
+#[cfg(feature = "opencv-backend")]
+pub use crate::videoframe::VideoFrame;
+#[cfg(not(feature = "opencv-backend"))]
+pub use crate::videoframe_stub::VideoFrame;
 
 /// Execute video logics
 /// Two executions possible: inject a file into a video or extract it.

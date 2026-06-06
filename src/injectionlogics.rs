@@ -362,10 +362,7 @@ pub fn frames_to_video(options: InjectOptions, frames: Vec<VideoFrame>) -> Resul
     if let Some(parent) = std::path::Path::new(&options.output_video_file).parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent).map_err(|err| {
-                format!(
-                    "Unable to create output directory {:?}: {}",
-                    parent, err
-                )
+                format!("Unable to create output directory {:?}: {}", parent, err)
             })?;
         }
     }
@@ -455,6 +452,21 @@ mod injectionlogics_tests {
     }
 
     #[test]
+    #[should_panic(expected = "Unable to read file")]
+    fn test_file_to_data_panics_for_missing_file() {
+        let options = opts(AlgoFrame::BW, 64, 64, 1);
+        let missing_path = std::env::temp_dir().join(format!(
+            "hdmift_missing_{}_{}.bin",
+            std::process::id(),
+            "file_to_data"
+        ));
+        let mut options = options;
+        options.file_path = missing_path.to_string_lossy().to_string();
+
+        let _ = file_to_data(&options);
+    }
+
+    #[test]
     fn test_data_to_frames_rgb_frame_count() {
         let options = opts(AlgoFrame::RGB, 64, 64, 1);
         let bytes_per_frame = frame_capacity(64, 64, 1) * 3;
@@ -473,11 +485,70 @@ mod injectionlogics_tests {
     }
 
     #[test]
+    fn test_data_to_frames_quantized_frame_count_and_header() {
+        let levels = 4;
+        let options = opts(AlgoFrame::Quantized(levels), 64, 64, 1);
+        let bytes_per_frame = frame_capacity(64, 64, 1) * 3 * 2 / 8;
+        let data: Vec<u8> = (0..(bytes_per_frame + 7))
+            .map(|i| (i % 251) as u8)
+            .collect();
+
+        let frames = data_to_frames_method_quantized(&options, data, levels);
+
+        assert_eq!(frames.len(), 2);
+        for (page, frame) in frames.iter().enumerate() {
+            let header = FrameHeader::from_bits(&read_header_bits(frame, 64, 1)).unwrap();
+            assert_eq!(header.frame_type, FrameType::Data);
+            assert_eq!(header.value, page as u64);
+        }
+    }
+
+    #[test]
+    fn test_data_to_frames_brightness_frame_count_and_header() {
+        let levels = 16;
+        let options = opts(AlgoFrame::Brightness(levels), 64, 64, 1);
+        let bytes_per_frame = frame_capacity(64, 64, 1) * 4 / 8;
+        let data: Vec<u8> = (0..(bytes_per_frame * 2 + 1))
+            .map(|i| (i % 251) as u8)
+            .collect();
+
+        let frames = data_to_frames_method_brightness(&options, data, levels);
+
+        assert_eq!(frames.len(), 3);
+        for (page, frame) in frames.iter().enumerate() {
+            let header = FrameHeader::from_bits(&read_header_bits(frame, 64, 1)).unwrap();
+            assert_eq!(header.frame_type, FrameType::Data);
+            assert_eq!(header.value, page as u64);
+        }
+    }
+
+    #[test]
     #[should_panic]
     fn test_data_to_frames_rgb_frame_too_small() {
         // 24x24 content is only 8x8 = 64 cells, less than the header -> capacity 0.
         let options = opts(AlgoFrame::RGB, 24, 24, 1);
         data_to_frames_method_rgb(&options, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Frame is too small to hold the header and at least one byte of payload")]
+    fn test_data_to_frames_bw_frame_too_small() {
+        let options = opts(AlgoFrame::BW, 25, 24, 1);
+        data_to_frames_method_bw(&options, vec![1]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Frame is too small to hold the header and at least one byte of payload at 2 levels/channel")]
+    fn test_data_to_frames_quantized_frame_too_small() {
+        let options = opts(AlgoFrame::Quantized(2), 25, 24, 1);
+        data_to_frames_method_quantized(&options, vec![1], 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "Frame is too small to hold the header and at least one byte of payload at 2 brightness levels")]
+    fn test_data_to_frames_brightness_frame_too_small() {
+        let options = opts(AlgoFrame::Brightness(2), 31, 24, 1);
+        data_to_frames_method_brightness(&options, vec![1], 2);
     }
 
     #[test]
@@ -517,4 +588,3 @@ mod injectionlogics_tests {
         }
     }
 }
-

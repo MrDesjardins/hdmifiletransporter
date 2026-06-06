@@ -1,9 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 
 fn all_benchmarks(c: &mut Criterion) {
-    c.bench_function("test", |b| {
-        b.iter(|| print!("test"))
-    });
+    c.bench_function("test", |b| b.iter(|| print!("test")));
 }
 criterion_group!(
     name = benches;
@@ -11,4 +9,3 @@ criterion_group!(
     targets = all_benchmarks
 );
 criterion_main!(benches);
-

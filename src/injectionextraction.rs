@@ -1,5 +1,6 @@
 pub const NULL_CHAR: u8 = 0u8;
 
+#[cfg(feature = "opencv-backend")]
 use opencv::core::Size;
 
 ///
@@ -12,6 +13,7 @@ pub struct Color {
 }
 
 /// Create a size to hold the height and width of a frame for the opencv framework
+#[cfg(feature = "opencv-backend")]
 pub fn map_to_size(width: u16, height: u16) -> Size {
     Size::new(i32::from(width), i32::from(height))
 }

@@ -905,11 +905,8 @@ const PLAN_SAMPLES: usize = 24;
 /// Profiles measured by the planner (must match names in `PROFILES`).
 const PLAN_PROFILES: [&str; 2] = ["Harsh", "Brutal"];
 /// File sizes to plan for (bytes).
-const PLAN_FILE_SIZES: [(&str, u64); 3] = [
-    ("1 MB", 1 << 20),
-    ("10 MB", 10 << 20),
-    ("50 MB", 50 << 20),
-];
+const PLAN_FILE_SIZES: [(&str, u64); 3] =
+    [("1 MB", 1 << 20), ("10 MB", 10 << 20), ("50 MB", 50 << 20)];
 /// Frame rates to report transfer time for. Fidelity is fps-independent in this
 /// model, so higher fps is always faster - capped only by what the real
 /// display/capture path can carry without dropping or tearing frames.
@@ -1144,7 +1141,8 @@ fn run_large_file_planner() -> Vec<PlanPoint> {
                                     .iter()
                                     .zip(payload.iter())
                                     .filter(|(a, b)| a != b)
-                                    .count() as u64;
+                                    .count()
+                                    as u64;
                                 wrong_bytes += mismatched;
                                 if mismatched == 0 {
                                     frame_ok += 1;
@@ -1313,8 +1311,12 @@ fn write_planner_markdown(points: &[PlanPoint]) -> String {
     // Density-vs-time trade-off across ALL target-profile configs for 50 MB at
     // 60 fps, so the optimum (and the cost of over-packing) is visible.
     out.push_str("## Density vs. time trade-off (50 MB @ 60 fps, `Harsh`)\n\n");
-    out.push_str("| mode | size | levels | bits/cell | survival | frames | passes | total time |\n");
-    out.push_str("|------|------|--------|-----------|----------|--------|--------|------------|\n");
+    out.push_str(
+        "| mode | size | levels | bits/cell | survival | frames | passes | total time |\n",
+    );
+    out.push_str(
+        "|------|------|--------|-----------|----------|--------|--------|------------|\n",
+    );
     let fifty: u64 = 50 << 20;
     for p in points.iter().filter(|p| p.profile == target) {
         let n = (fifty + p.bytes_per_frame as u64 - 1) / p.bytes_per_frame as u64;
@@ -1408,8 +1410,10 @@ fn run_matrix(payload: &[u8]) {
     let md = write_markdown(&results, &variance);
     fs::write("benchmark_results.md", &md).expect("write benchmark_results.md");
     fs::write("benchmark_results.csv", write_csv(&results)).expect("write benchmark_results.csv");
-    fs::write("color_variance.csv", write_variance_csv(&variance)).expect("write color_variance.csv");
-    fs::write("color_variance.svg", write_variance_svg(&variance)).expect("write color_variance.svg");
+    fs::write("color_variance.csv", write_variance_csv(&variance))
+        .expect("write color_variance.csv");
+    fs::write("color_variance.svg", write_variance_svg(&variance))
+        .expect("write color_variance.svg");
     println!("\nWrote benchmark_results.md, benchmark_results.csv, color_variance.csv, color_variance.svg");
 }
 
@@ -1418,7 +1422,8 @@ fn run_planner() {
     let points = run_large_file_planner();
     let md = write_planner_markdown(&points);
     fs::write("planner_results.md", &md).expect("write planner_results.md");
-    fs::write("planner_results.csv", write_planner_csv(&points)).expect("write planner_results.csv");
+    fs::write("planner_results.csv", write_planner_csv(&points))
+        .expect("write planner_results.csv");
     println!("\nWrote planner_results.md, planner_results.csv");
     println!("\n{}", md);
 }

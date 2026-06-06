@@ -373,4 +373,24 @@ mod injectionlogics_tests {
         let bits = vec![false; HEADER_BITS];
         assert!(FrameHeader::from_bits(&bits).is_none());
     }
+
+    #[test]
+    fn test_frame_header_short_bits_are_rejected() {
+        let bits = vec![true; HEADER_BITS - 1];
+        assert!(FrameHeader::from_bits(&bits).is_none());
+    }
+
+    #[test]
+    fn test_frame_header_unknown_type_is_rejected() {
+        let header = FrameHeader::new(FrameType::Data, 99, &[1, 2, 3]);
+        let mut bits = header.to_bits();
+        // Header layout is magic byte followed by frame type byte. Set the type
+        // byte to 2, which is intentionally not assigned.
+        for bit in &mut bits[8..16] {
+            *bit = false;
+        }
+        bits[14] = true;
+
+        assert!(FrameHeader::from_bits(&bits).is_none());
+    }
 }

@@ -212,6 +212,14 @@ mod injectionlogics_tests {
     }
 
     #[test]
+    fn test_symbol_value_degenerate_levels() {
+        assert_eq!(symbol_to_value(10, 1), 0);
+        assert_eq!(value_to_symbol(200, 1), 0);
+        assert_eq!(symbol_to_value(10, 0), 0);
+        assert_eq!(value_to_symbol(200, 0), 0);
+    }
+
+    #[test]
     fn test_symbol_value_round_trip_all_symbols() {
         for &levels in &[2u32, 4, 8, 16, 256] {
             for symbol in 0..levels {

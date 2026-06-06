@@ -3,7 +3,9 @@ use opencv::videoio::VideoCapture;
 use std::fs;
 
 use crate::bitlogics::{bits_per_channel, get_bit_from_rgb, mutate_byte, value_to_symbol};
-use crate::injectionextraction::{content_cell_xy, frame_capacity, map_to_size, marker_centers_px, HEADER_BITS};
+use crate::injectionextraction::{
+    content_cell_xy, frame_capacity, map_to_size, marker_centers_px, HEADER_BITS,
+};
 use crate::instructionlogics::{FrameHeader, FrameType};
 use crate::options::AlgoFrame;
 use crate::videoframe::VideoFrame;
@@ -67,12 +69,7 @@ pub fn video_to_frames(extract_options: &ExtractOptions) -> Vec<VideoFrame> {
 /// captured frame and affine-warp it back to canonical `width` x `height`
 /// pixels so the cell grid lines up with what the encoder wrote. Returns `None`
 /// when the markers cannot be found.
-pub fn register_frame(
-    image: &Mat,
-    width: u16,
-    height: u16,
-    size: u8,
-) -> Option<VideoFrame> {
+pub fn register_frame(image: &Mat, width: u16, height: u16, size: u8) -> Option<VideoFrame> {
     let w = image.cols();
     let h = image.rows();
     if w == 0 || h == 0 {
@@ -287,7 +284,10 @@ pub fn frames_to_data(extract_options: &ExtractOptions, frames: Vec<VideoFrame>)
 
     if extract_options.show_progress {
         pb.finish_with_message("done");
-        println!("Relevant (unique, valid) data frames: {}", relevant_frame_count);
+        println!(
+            "Relevant (unique, valid) data frames: {}",
+            relevant_frame_count
+        );
     }
 
     match total_bytes {
@@ -584,7 +584,7 @@ fn frame_to_data_method_brightness(
 
 /// Extract a pixel value that might be spread on many sibling pixel to reduce innacuracy
 /// # Source
-/// Code is a copy of https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L121
+/// Code is a copy of <https://github.com/DvorakDwarf/Infinite-Storage-Glitch/blob/master/src/etcher.rs#L121>
 fn get_pixel(frame: &VideoFrame, x: i32, y: i32, size: u8) -> Vec<u8> {
     let mut r_list: Vec<u8> = Vec::new();
     let mut g_list: Vec<u8> = Vec::new();

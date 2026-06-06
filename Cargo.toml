@@ -2,7 +2,7 @@
 name = "hdmifiletransporter"
 default-run = "hdmifiletransporter"
 description = "Proof of concept on transferring files using HDMI (video via HDMI) from one computer to another"
-version = "0.1.2"
+version = "1.0.0"
 edition = "2021"
 authors = ["Patrick Desjardins <mrdesjardins@gmail.com>"]
 homepage = "https://github.com/MrDesjardins/hdmifiletransporter"
@@ -13,36 +13,48 @@ keywords = ["steganography", "hidden-message", "video", "hdmi", "file-transfer"]
 exclude = [".vscode", ".github", "testAssets", "*.png", "*.sh"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["opencv-backend"]
+opencv-backend = ["dep:opencv"]
+
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-opencv = "0.98"
-indicatif = "0.17.3"
+opencv = { version = "0.98", optional = true, default-features = false, features = ["imgcodecs", "imgproc", "videoio"] }
+indicatif = "0.18.4"
 crc32fast = "1.3.2"
 
 [dev-dependencies]
-criterion = "0.4.0"
+criterion = "0.8.2"
 
 [[bench]]
 name = "micro"
 path = "benches/benchmark.rs"
 harness = false
+required-features = ["opencv-backend"]
 
 [[bin]]
 name = "hdmifiletransporter"
 path = "src/bin/hdmifiletransporter.rs"
+required-features = ["opencv-backend"]
 
 [[bin]]
 name = "benchmark"
 path = "src/bin/benchmark.rs"
+required-features = ["opencv-backend"]
 
 [[bin]]
 name = "colorframe"
 path = "src/bin/colorframe.rs"
+required-features = ["opencv-backend"]
 
 [[bin]]
 name = "diagonal"
 path = "src/bin/diagonal.rs"
+required-features = ["opencv-backend"]
 
 [lib]
 name = "hdmifiletransporter"
 path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+no-default-features = true

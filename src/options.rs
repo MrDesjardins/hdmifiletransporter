@@ -163,7 +163,6 @@ pub struct CliData {
 
     #[arg(short = 'p', long)]
     pub show_progress: Option<bool>,
-
 }
 
 /// Extract from the command line (CLI) argument the option.
@@ -205,7 +204,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                         height: args.height.unwrap_or(2160),
                         width: args.width.unwrap_or(3840),
                         algo: resolve_algo(args.algo.unwrap_or(AlgoFrame::RGB), args.levels),
-                        show_progress: args.show_progress.unwrap_or(false)
+                        show_progress: args.show_progress.unwrap_or(false),
                     }
                 })
             }
@@ -222,7 +221,7 @@ pub fn extract_options(args: CliData) -> Result<VideoOptions, String> {
                     height: args.height.unwrap_or(2160),
                     width: args.width.unwrap_or(3840),
                     algo: resolve_algo(args.algo.unwrap_or(AlgoFrame::RGB), args.levels),
-                    show_progress: args.show_progress.unwrap_or(false)
+                    show_progress: args.show_progress.unwrap_or(false),
                 }
             }),
         },
@@ -267,6 +266,41 @@ mod options_tests {
     use super::*;
     use crate::options::AppMode;
     use crate::VideoOptions::{ExtractFromVideo, InjectInVideo};
+
+    #[test]
+    fn test_app_mode_display_and_parse() {
+        assert_eq!(AppMode::Inject.to_string(), "inject");
+        assert_eq!(AppMode::Extract.to_string(), "extract");
+        assert_eq!("inject".parse::<AppMode>().unwrap(), AppMode::Inject);
+        assert_eq!("extract".parse::<AppMode>().unwrap(), AppMode::Extract);
+        assert_eq!(
+            "download".parse::<AppMode>().unwrap_err(),
+            "Unknown mode: download"
+        );
+    }
+
+    #[test]
+    fn test_algo_display_and_parse() {
+        assert_eq!(AlgoFrame::RGB.to_string(), "rgb");
+        assert_eq!(AlgoFrame::BW.to_string(), "bw");
+        assert_eq!(AlgoFrame::Quantized(8).to_string(), "quantized8");
+        assert_eq!(AlgoFrame::Brightness(16).to_string(), "brightness16");
+        assert_eq!("rgb".parse::<AlgoFrame>().unwrap(), AlgoFrame::RGB);
+        assert_eq!("bw".parse::<AlgoFrame>().unwrap(), AlgoFrame::BW);
+        assert_eq!(
+            "quantized".parse::<AlgoFrame>().unwrap(),
+            AlgoFrame::Quantized(DEFAULT_QUANTIZED_LEVELS)
+        );
+        assert_eq!(
+            "brightness".parse::<AlgoFrame>().unwrap(),
+            AlgoFrame::Brightness(DEFAULT_QUANTIZED_LEVELS)
+        );
+        assert_eq!(
+            "sepia".parse::<AlgoFrame>().unwrap_err(),
+            "Unknown algo: sepia"
+        );
+    }
+
     #[test]
     #[should_panic]
     fn test_extract_options_no_mode() {
@@ -280,7 +314,7 @@ mod options_tests {
             width: None,
             algo: None,
             levels: None,
-            show_progress: None
+            show_progress: None,
         });
     }
     #[test]
@@ -326,6 +360,117 @@ mod options_tests {
             assert!(true, "Failed to unwrapped inject options");
         }
     }
+
+    #[test]
+    fn test_extract_options_inject_quantized_custom_levels() {
+        let options = extract_options(CliData {
+            fps: Some(24),
+            height: Some(720),
+            input_file_path: Some("inputfile.txt".to_string()),
+            mode: Some(AppMode::Inject),
+            output_video_path: Some("out.mkv".to_string()),
+            size: Some(2),
+            width: Some(1280),
+            algo: Some(AlgoFrame::Quantized(DEFAULT_QUANTIZED_LEVELS)),
+            levels: Some(16),
+            show_progress: Some(true),
+        });
+
+        let unwrapped_options = options.unwrap();
+        if let InjectInVideo(op) = unwrapped_options {
+            assert_eq!(op.fps, 24);
+            assert_eq!(op.height, 720);
+            assert_eq!(op.width, 1280);
+            assert_eq!(op.size, 2);
+            assert_eq!(op.output_video_file, "out.mkv");
+            assert_eq!(op.algo, AlgoFrame::Quantized(16));
+            assert_eq!(op.show_progress, true);
+        } else {
+            panic!("Expected inject options");
+        }
+    }
+
+    #[test]
+    fn test_extract_options_extract_brightness_default_levels() {
+        let options = extract_options(CliData {
+            fps: Some(60),
+            height: Some(1080),
+            input_file_path: Some("input.mkv".to_string()),
+            mode: Some(AppMode::Extract),
+            output_video_path: Some("payload.bin".to_string()),
+            size: Some(4),
+            width: Some(1920),
+            algo: Some(AlgoFrame::Brightness(DEFAULT_QUANTIZED_LEVELS)),
+            levels: None,
+            show_progress: Some(true),
+        });
+
+        let unwrapped_options = options.unwrap();
+        if let ExtractFromVideo(op) = unwrapped_options {
+            assert_eq!(op.fps, 60);
+            assert_eq!(op.height, 1080);
+            assert_eq!(op.width, 1920);
+            assert_eq!(op.size, 4);
+            assert_eq!(op.extracted_file_path, "payload.bin");
+            assert_eq!(op.video_file_path, "input.mkv");
+            assert_eq!(op.algo, AlgoFrame::Brightness(DEFAULT_QUANTIZED_LEVELS));
+            assert_eq!(op.show_progress, true);
+        } else {
+            panic!("Expected extract options");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "--levels must be a power of two between 2 and 256")]
+    fn test_extract_options_rejects_invalid_levels() {
+        let _ = extract_options(CliData {
+            fps: None,
+            height: None,
+            input_file_path: Some("inputfile.txt".to_string()),
+            mode: Some(AppMode::Inject),
+            output_video_path: None,
+            size: None,
+            width: None,
+            algo: Some(AlgoFrame::Quantized(DEFAULT_QUANTIZED_LEVELS)),
+            levels: Some(3),
+            show_progress: None,
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Height and size are not a divided round number")]
+    fn test_extract_options_inject_rejects_unaligned_height() {
+        let _ = extract_options(CliData {
+            fps: None,
+            height: Some(65),
+            input_file_path: Some("inputfile.txt".to_string()),
+            mode: Some(AppMode::Inject),
+            output_video_path: None,
+            size: Some(2),
+            width: Some(64),
+            algo: None,
+            levels: None,
+            show_progress: None,
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Width and size are not a divided round number")]
+    fn test_extract_options_inject_rejects_unaligned_width() {
+        let _ = extract_options(CliData {
+            fps: None,
+            height: Some(64),
+            input_file_path: Some("inputfile.txt".to_string()),
+            mode: Some(AppMode::Inject),
+            output_video_path: None,
+            size: Some(2),
+            width: Some(65),
+            algo: None,
+            levels: None,
+            show_progress: None,
+        });
+    }
+
     #[test]
     fn test_extract_options_extract_default() {
         let options = extract_options(CliData {

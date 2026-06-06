@@ -54,7 +54,6 @@ fn main() {
         y += size as u16;
     }
 
-
     // Create frames using the colors computed
     for _frame_counter in 0..30 {
         y = 0;
@@ -82,7 +81,7 @@ fn main() {
             width: width,
             output_video_file: "outputs/color_video.mkv".to_string(),
             show_progress: true,
-            size: 1
+            size: 1,
         },
         frames,
     )
