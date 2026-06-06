@@ -19,6 +19,7 @@ For details about the concept and code visit these articles:
 1. [How to Transfer Files Between Computers Using HDMI (Part 5: Instruction Header)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-5-instruction-header)
 1. [How to Transfer Files Between Computers Using HDMI (Part 6: Instruction and Black and White)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-6-instruction-black-white)
 1. [How to Transfer Files Between Computers Using HDMI (Part 7: Pagination)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-7-pagination)
+1. [How to Transfer Files Between Computers Using HDMI (Part 8: CRC)](https://patrickdesjardins.com/blog/how-to-transfer-files-between-computers-using-HDMI-Part-8-registration-and-crc)
 
 # Scope of this Code Base
 

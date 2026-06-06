@@ -12,11 +12,11 @@ env:
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         rust: [stable, nightly]
 
     steps:
@@ -31,9 +31,17 @@ jobs:
           override: true
 
       - name: Install CV
+        if: runner.os == 'Linux'
         run: |
-          sudo apt-get install -y libopencv-dev clang libclang-dev
-          sudo apt install cmake
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 libopencv-dev clang libclang-dev cmake
+
+      - name: Install CV
+        if: runner.os == 'macOS'
+        run: |
+          brew install opencv cmake pkg-config
+          echo "LIBCLANG_PATH=/Library/Developer/CommandLineTools/usr/lib" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Developer/CommandLineTools/usr/lib:$DYLD_FALLBACK_LIBRARY_PATH" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -63,9 +71,10 @@ jobs:
           components: llvm-tools-preview
 
       - name: Install CV
+        if: runner.os == 'Linux'
         run: |
-          sudo apt-get install -y libopencv-dev clang libclang-dev
-          sudo apt install cmake
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 libopencv-dev clang libclang-dev cmake
 
       - uses: Swatinem/rust-cache@v2
 
