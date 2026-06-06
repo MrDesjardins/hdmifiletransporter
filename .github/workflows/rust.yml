@@ -9,6 +9,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   check:
     name: Check
@@ -92,6 +96,7 @@ jobs:
         with:
           files: target/coverage/tests.lcov
           fail_ci_if_error: true
+          use_oidc: true
           verbose: true
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
       
